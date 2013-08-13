@@ -94,7 +94,7 @@ sub r_mkdir
     unless (-d $fp)
     {
       print "mkdir [$fp]\n";
-      # mkdir ($fp);
+      mkdir ($fp);
       $c++;
     }
 
