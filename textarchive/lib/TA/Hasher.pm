@@ -9,7 +9,7 @@ package TA::Hasher;
 use Data::Dumper;
 $Data::Dumper::Indent= 1;
 
-my %known_algorithms= map { $_ => 1 } qw(NULL S3C2L P3C3L);
+my %known_algorithms= map { $_ => 1 } qw(NULL S3C1L S3C2L P3C3L);
 
 sub new
 {
@@ -29,7 +29,12 @@ sub new
     $algorithm= $obj->{'algorithm'}= 'NULL';
   }
 
-  if ($algorithm eq 'S3C2L')
+  if ($algorithm eq 'S3C1L')
+  {
+    print "setting up S3C1L\n";
+    $obj->{'mkpo'}= \&TA::Hasher::S3C1L::mkpo;
+  }
+  elsif ($algorithm eq 'S3C2L')
   {
     print "setting up S3C2L\n";
     $obj->{'mkpo'}= \&TA::Hasher::S3C2L::mkpo;
@@ -113,6 +118,23 @@ sub mkpo
   my $S= shift;
   return undef unless (defined ($S));
   return { 'L' => [] };
+}
+
+package TA::Hasher::S3C1L;
+
+sub mkpo
+{
+  my $S= shift;
+
+  return undef unless (defined ($S));
+
+  my @L;
+
+  if ($S =~ m#(.{1,3})$#)
+       { @L= ( $1 ); }
+  else { @L= ( $S ); }
+
+  return { 'L' => \@L };
 }
 
 package TA::Hasher::S3C2L;
