@@ -64,45 +64,44 @@ sub get_project
   $proj_cfg;
 }
 
-
-sub add
+sub lookup
 {
   my $obj= shift;
   my $id_str= shift;
-  my $max_age= shift; # TODO: add code to skip processing if registry data was not updated; but this is tricky because it really depends on the subproject...
-  my $new_reg= shift;
 
-  my @r= $obj->{'hasher'}->check_file ($id_str, 1);
-
-  print "id_str=[$id_str] r=", main::Dumper (\@r);
+  print "lookup [$id_str]\n";
+  my @r= $obj->{'hasher'}->check_file ($id_str, 0);
+  # print "id_str=[$id_str] r=", main::Dumper (\@r);
   my ($rc, $path)= @r;
 
   my $fnm= $path . '/' . $id_str . '.json';
   print "description: [$fnm]\n";
 
-  my $reg;
-  my $upd= 0;
-
   my @st= stat ($fnm);
+  return undef unless (defined (@st));
 
-  if (@st)
-  {
-    $reg= TA::Util::slurp_file ($fnm, 'json');
-    print "json read: ", main::Dumper ($reg);
-  }
-  else
-  {
-    $reg= $new_reg;
-    $upd= 1;
-  }
+  my $reg= TA::Util::slurp_file ($fnm, 'json');
+ 
+  return $reg;
+}
 
-  if ($upd)
-  {
-    print "reg: ", main::Dumper ($reg);
-    my $j= encode_json ($reg);
-    print "generated json: [$j]\n";
-    open (J, '>:utf8', $fnm); print J $j; close (J);
-  }
+sub save
+{
+  my $obj= shift;
+  my $id_str= shift;
+  my $new_reg= shift;
+
+  print "save [$id_str]\n";
+  my @r= $obj->{'hasher'}->check_file ($id_str, 1);
+  # print "id_str=[$id_str] r=", main::Dumper (\@r);
+  my ($rc, $path)= @r;
+
+  my $fnm= $path . '/' . $id_str . '.json';
+  print "description: [$fnm]\n";
+
+  my $j= encode_json ($new_reg);
+  print "generated json: [$j]\n";
+  open (J, '>:utf8', $fnm); print J $j; close (J);
 }
 
 # =head1 INTERNAL FUNCTIONS
