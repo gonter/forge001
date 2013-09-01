@@ -74,7 +74,7 @@ sub check_file
 
   my @dir_path= @{$mkpo->{'L'}};
   unshift (@dir_path, $obj->{'pfx'}) if (exists ($obj->{'pfx'}));
-  push (@dir_path, $fnm) if ($obj->{'name'} == 'dir');
+  push (@dir_path, $fnm) if ($obj->{'name'} eq 'dir');
 
   my $dir_path= join ('/', @dir_path);
   my $existed= (-d $dir_path) ? 1 : 0;

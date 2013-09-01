@@ -3,6 +3,8 @@ package TA::Util;
 
 use strict;
 
+use JSON;
+
 =head2 _file_slurp ($filename, $format)
 
 read contents of that file and 
