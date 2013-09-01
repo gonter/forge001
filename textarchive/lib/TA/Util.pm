@@ -16,7 +16,7 @@ sub slurp_file
   my $fnm= shift;
   my $format= shift || 'lines';
 
-  open (FI, $fnm) or return undef;
+  open (FI, '<:utf8', $fnm) or return undef;
   my @lines= <FI>;
   close (FI);
 

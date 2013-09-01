@@ -15,7 +15,7 @@ sub new
 
   # check the presence of all required parameters
   my $stopit= 0;
-  foreach my $k (qw(project subproject))
+  foreach my $k (qw(project store))
   {
     unless (exists ($par{$k}))
     {
@@ -69,16 +69,16 @@ sub lookup
   my $obj= shift;
   my $id_str= shift;
 
-  print "lookup [$id_str]\n";
+  # print "lookup [$id_str]\n";
   my @r= $obj->{'hasher'}->check_file ($id_str, 0);
   # print "id_str=[$id_str] r=", main::Dumper (\@r);
   my ($rc, $path)= @r;
 
   my $fnm= $path . '/' . $id_str . '.json';
-  print "description: [$fnm]\n";
+  # print "description: [$fnm]\n";
 
   my @st= stat ($fnm);
-  return undef unless (defined (@st));
+  return undef unless (@st);
 
   my $reg= TA::Util::slurp_file ($fnm, 'json');
  
@@ -97,10 +97,10 @@ sub save
   my ($rc, $path)= @r;
 
   my $fnm= $path . '/' . $id_str . '.json';
-  print "description: [$fnm]\n";
+  # print "description: [$fnm]\n";
 
   my $j= encode_json ($new_reg);
-  print "generated json: [$j]\n";
+  # print "generated json: [$j]\n";
   open (J, '>:utf8', $fnm); print J $j; close (J);
 }
 

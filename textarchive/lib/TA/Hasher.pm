@@ -9,7 +9,7 @@ package TA::Hasher;
 use Data::Dumper;
 $Data::Dumper::Indent= 1;
 
-my %known_algorithms= map { $_ => 1 } qw(NULL S3C1L S3C2L P3C3L);
+my %known_algorithms= map { $_ => 1 } qw(NULL S3C1L S3C2L P3C3L P3C2L P3C1L);
 
 sub new
 {
@@ -42,6 +42,14 @@ sub new
   elsif ($algorithm eq 'P3C3L')
   {
     $obj->{'mkpo'}= \&TA::Hasher::P3C3L::mkpo;
+  }
+  elsif ($algorithm eq 'P3C2L')
+  {
+    $obj->{'mkpo'}= \&TA::Hasher::P3C2L::mkpo;
+  }
+  elsif ($algorithm eq 'P3C1L')
+  {
+    $obj->{'mkpo'}= \&TA::Hasher::P3C1L::mkpo;
   }
   else
   {
@@ -169,6 +177,42 @@ sub mkpo
   elsif ($S =~ m#^(...)(.{1,3})#)
        { @L= ( $1, $2, 'ZZZ' ); }
   else { @L= ( $S, 'ZZZ', 'ZZZ' ); }
+
+  return { 'L' => \@L };
+}
+
+package TA::Hasher::P3C2L;
+
+sub mkpo
+{
+  my $S= shift;
+
+  return undef unless (defined ($S));
+
+  my @L;
+
+  if ($S =~ m#^(...)(.{1,3})#)
+       { @L= ( $1, $2 ); }
+  elsif ($S =~ m#^(.{1,3})#)
+       { @L= ( $1, 'ZZZ' ); }
+  else { @L= ( $S, 'ZZZ' ); }
+
+  return { 'L' => \@L };
+}
+
+package TA::Hasher::P3C1L;
+
+sub mkpo
+{
+  my $S= shift;
+
+  return undef unless (defined ($S));
+
+  my @L;
+
+  if ($S =~ m#^(.{1,3})#)
+       { @L= ( $1 ); }
+  else { @L= ( $S ); }
 
   return { 'L' => \@L };
 }
