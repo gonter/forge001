@@ -1,5 +1,27 @@
 #!/usr/bin/perl
 
+=head1 NAME
+
+  vlib001.pl
+
+=head1 USAGE
+
+  vlib001.pl -p project-name -s store-name
+
+  options:
+  * -p <project-name>
+  * -s <store-name>
+  * --fileinfo ... refresh file info
+  * -D ... increase debug level
+
+=head1 DESCRIPTION
+
+updates the _catalog file using md5cat scripts and registers the files in
+the project's object registry.  The environment variable TABASE must point
+to the directory where the object registry's configuration is stored.
+
+=cut
+
 use strict;
 
 use Data::Dumper;
@@ -20,8 +42,8 @@ while (my $arg= shift (@ARGV))
      if ($arg eq '--') { push (@PAR, @ARGV); @ARGV= (); }
   elsif ($arg =~ /^--/)
   {
-       if ($arg eq '--project')    {    $project= shift (@ARGV); }
-    elsif ($arg eq '--store') { $store= shift (@ARGV); }
+       if ($arg eq '--project')  { $project= shift (@ARGV); }
+    elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
   }
   elsif ($arg =~ /^-/)
@@ -39,6 +61,7 @@ while (my $arg= shift (@ARGV))
 
 print "debug level: $DEBUG\n";
 
+&usage ('environment variable TABASE not set') unless (exists ($ENV{'TABASE'}));
 &usage ('no project specified') unless (defined ($project));
 # &usage ('no store specified') unless (defined ($store));
 
@@ -177,4 +200,19 @@ sub usage
   system ("perldoc $0");
   exit -1;
 }
+
+__END__
+
+=head1 TODO
+
+=head2 auto-check-mode
+
+  * The project's config contains all the information that is needed to
+    locate all the stores on a given machine, so there should be an option
+    that updates everything.
+  * specifing the store should be optional
+  * maybe it makes sense to offer an option to perform backups along the
+    way, for instance, when the store is actually a git repository.
+  * Also, checking the VCS status might (if not committing updates)
+    might be useful.
 
