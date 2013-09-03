@@ -33,9 +33,11 @@ use TA::ObjReg;
 
 my @PAR= ();
 my $project;
-my $store= '<none>';
+my $store;
 my $refresh_fileinfo= 0;
 my $DEBUG= 0;
+my $STOP= 0;
+my $op_mode= 'refresh';
 
 while (my $arg= shift (@ARGV))
 {
@@ -45,6 +47,7 @@ while (my $arg= shift (@ARGV))
        if ($arg eq '--project')  { $project= shift (@ARGV); }
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
+    elsif ($arg =~ /^--(refresh|verify)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
   {
@@ -54,6 +57,7 @@ while (my $arg= shift (@ARGV))
          if ($a eq 'p') { $project= shift (@ARGV); }
       elsif ($a eq 's') { $store= shift (@ARGV); }
       elsif ($a eq 'D') { $DEBUG++; }
+      elsif ($a eq 'X') { $STOP= 1; }
     }
   }
   else { push (@PAR, $arg); }
@@ -67,8 +71,11 @@ print "debug level: $DEBUG\n";
 
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store);
 &usage ('no config found') unless (defined ($objreg));
-print "objreg: ", Dumper ($objreg) if ($DEBUG);
+print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
+exit if ($STOP);
 
+if ($op_mode eq 'refresh')
+{
 my $catalog= $objreg->{'cfg'}->{'catalog'};
 &usage ('no catalog found in config') unless (defined ($catalog));
 
@@ -81,14 +88,27 @@ unless (defined ($store_cfg))
 }
 print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 
-if ($catalog->{'format'} eq 'md5cat')
+  if ($catalog->{'format'} eq 'md5cat')
+  {
+    refresh_md5cat ($objreg, $store);
+  }
+}
+elsif ($op_mode eq 'verify')
 {
-  refresh_md5cat ($objreg, $store);
+  $objreg->verify_toc ($store);
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
 
 exit (0);
+
+sub usage
+{
+  my $msg= shift;
+  print $msg, "\n";
+  system ("perldoc $0");
+  exit -1;
+}
 
 sub refresh_md5cat
 {
@@ -165,7 +185,7 @@ sub process_file
     }
     else
     {
-      $reg= { 'md5' => $md5, 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
+      $reg= { 'key' => $md5, 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
       push (@upd, 'new md5');
     }
 
@@ -191,14 +211,6 @@ sub process_file
   }
 
   (wantarray) ? @upd : \@upd;
-}
-
-sub usage
-{
-  my $msg= shift;
-  print $msg, "\n";
-  system ("perldoc $0");
-  exit -1;
 }
 
 __END__
