@@ -47,7 +47,7 @@ while (my $arg= shift (@ARGV))
        if ($arg eq '--project')  { $project= shift (@ARGV); }
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
-    elsif ($arg =~ /^--(refresh|verify)$/) { $op_mode= $1; }
+    elsif ($arg =~ /^--(refresh|verify|lookup)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
   {
@@ -96,6 +96,14 @@ print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 elsif ($op_mode eq 'verify')
 {
   $objreg->verify_toc ($store);
+}
+elsif ($op_mode eq 'lookup')
+{
+  foreach my $key (@PAR)
+  {
+    my $res= $objreg->lookup ($key);
+    print "res: ", Dumper ($res);
+  }
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
