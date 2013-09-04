@@ -9,7 +9,7 @@ package TA::Hasher;
 use Data::Dumper;
 $Data::Dumper::Indent= 1;
 
-my %known_algorithms= map { $_ => 1 } qw(NULL S3C1L S3C2L P3C3L P3C2L P3C1L);
+my %known_algorithms= map { $_ => 1 } qw(NULL S3C1L S3C2L P3C3L P3C2L P3C1L P4C1L);
 
 sub new
 {
@@ -50,6 +50,10 @@ sub new
   elsif ($algorithm eq 'P3C1L')
   {
     $obj->{'mkpo'}= \&TA::Hasher::P3C1L::mkpo;
+  }
+  elsif ($algorithm eq 'P4C1L')
+  {
+    $obj->{'mkpo'}= \&TA::Hasher::P4C1L::mkpo;
   }
   else
   {
@@ -217,6 +221,23 @@ sub mkpo
   return { 'L' => \@L };
 }
 
+package TA::Hasher::P4C1L;
+
+sub mkpo
+{
+  my $S= shift;
+
+  return undef unless (defined ($S));
+
+  my @L;
+
+  if ($S =~ m#^(.{1,4})#)
+       { @L= ( $1 ); }
+  else { @L= ( $S ); }
+
+  return { 'L' => \@L };
+}
+
 1;
 
 __END__
@@ -226,6 +247,8 @@ __END__
 =over 2
 
 =item check_path ($mkpo)
+
+=item method to register hasher algorithm
 
 =back
 
