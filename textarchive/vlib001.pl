@@ -159,7 +159,7 @@ sub process_file
       return undef;
     }
 
-    my $xdata= { 'c_size' => $size, 'path' => $path, 'mtime' => $st[9], 'fs_size' => $st[7] };
+    my $xdata= { 'c_size' => $size, 'path' => $path, 'mtime' => $st[9], 'fs_size' => $st[7], 'ino' => $st[1] };
 
     my $reg= $objreg->lookup ($md5);
 
@@ -173,9 +173,17 @@ sub process_file
           && exists ($sb->{'path'})
           && defined ($ydata= $sb->{'path'}->{$path}) # we need to keep track of the path as well otherwise we can't handly duplicates in the same store
           && $st[7] == $ydata->{'fs_size'}
-	  && $st[9] == $ydata->{'mtime'}
-	 )
+          && $st[9] == $ydata->{'mtime'}
+        )
       { # TODO: compare stored and current information
+        foreach my $an (keys %$xdata)
+        {
+          unless ($ydata->{$an} eq $xdata->{$an})
+          {
+            $ydata->{$an}= $xdata->{$an};
+            push (@upd, $an);
+          }
+        }
       }
       else
       {
@@ -188,7 +196,7 @@ sub process_file
         # print "ydata: ", Dumper ($ydata);
         # print "xdata: ", Dumper ($xdata);
 
-	push (@upd, 'store upd');
+        push (@upd, 'store upd');
       }
     }
     else

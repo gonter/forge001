@@ -37,6 +37,16 @@ sub slurp_file
     my $str= join ('', @lines);
     return decode_json ($str);
   }
+  elsif ($format eq 'csv')
+  {
+    my $hdr= split (';', shift (@lines));
+    my @d;
+    while (my $l= shift (@lines))
+    {
+      push (@d, split (';', $l));
+    }
+    return [$hdr, \@d];
+  }
  
   print STDERR "unknown slurp format '$format'\n";
   return undef;
