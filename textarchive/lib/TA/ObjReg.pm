@@ -246,7 +246,7 @@ print "sub verify_toc_v1\n";
   my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
 
   # TODO: this is specific for vlib001.pl, this should be a passed as code ref!
-  my @hdr= qw(seq found paths path mtime fs_size ino);
+  my @hdr= qw(seq found path_count path mtime fs_size ino);
 
   my $c= $reg->{'proj_cat'};
   # pick up current tocs to see if the sequence needs to be updated
