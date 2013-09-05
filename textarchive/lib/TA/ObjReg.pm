@@ -12,7 +12,6 @@ package TA::ObjReg;
 
 =cut
 
-
 use strict;
 
 use JSON;
@@ -246,7 +245,7 @@ print "sub verify_toc_v1\n";
   my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
 
   # TODO: this is specific for vlib001.pl, this should be a passed as code ref!
-  my @hdr= qw(seq found path_count path mtime fs_size ino);
+  my @hdr= qw(seq found store_count path_count path mtime fs_size ino);
 
   my $c= $reg->{'proj_cat'};
   # pick up current tocs to see if the sequence needs to be updated
@@ -314,6 +313,7 @@ print "sub verify_toc_v1\n";
       my $jj= $j->{'store'}->{$store};
       my @paths= keys %{$jj->{'path'}};
       $ster->{'path_count'}= scalar @paths;
+      $ster->{'store_count'}= scalar @i_stores;
       my $p1= shift (@paths);
       my $px1= $jj->{'path'}->{$p1};
 
@@ -361,109 +361,6 @@ print "sub verify_toc_v1\n";
 
   # TODO: return something meaningful
 }
-
-sub verify_toc_v2
-{
-  my $reg= shift;
-
-  # my $store= shift; this does not make sense, we need to verify verything anyway
-
-  # my @stores= (defined ($store)) ? $store : $reg->stores();
-  my @stores= $reg->stores();
-  # print "stores: ", join (', ', @stores), "\n"; exit;
-  my %stores;
-
-  my $c= $reg->{'proj_cfg_dir'};
-  # pick up current tocs to see if the sequence needs to be updated
-  my $f= $c . '/' . 'TOC.csv';
-  my ($toc_hdr, $toc_data)= TA::Util::slurp_file ($f, 'csv');
-  $toc_data= [] unless (defined ($toc_data)); # we need an empty toc if there is none yet
-
-  my %items;
-  sub item_files_2
-  {
-    next if ($_ =~ /\.toc\.json$/);
-    # next if ($_ eq 'TOC\.csv');
-    my $x;
-    next unless ($_ =~ /\.json$/ && -f ($x= $File::Find::name));
-
-    # print "file=[$_] path=[$x]\n";
-    $items{$_}= [ $x ];
-  }
-
-  my $d= $reg->{'proj_cat'};
-  print "proj_cat=[$d]\n";
-  find (\&item_files, $d);
-
-  # print "items: ", main::Dumper (\%items);
-  foreach my $item (keys %items)
-  {
-    my $p= $items{$item};
-    my $j= TA::Util::slurp_file ($p->[0], 'json');
-    print "j: ", main::Dumper ($j);
-    my @i_stores= keys %{$j->{'store'}};
-    my $key= $j->{'key'};
-    print join (' ', $key, @i_stores), "\n";
-
-=begin comment
-
-    # search for a key's sequence number in all known stores, not only
-    # in those that are *currently* used for this store
-    my $seq;
-    S1: foreach my $store (@stores)
-    {
-      if (exists ($stores{$store}->{$key}))
-      {
-        $seq= $stores{$store}->{$key}->{'seq'};
-        last S1;
-      }
-    }
-
-    S2: foreach my $store (@i_stores)
-    {
-      my $ster; # store's toc entry record ;)
-      unless (defined ($ster= $stores{$store}->{$key}))
-      {
-        $ster= $stores{$store}->{$key}=
-        {
-          'seq' => $reg->next_seq(),
-          'upd' =>  time (),
-        };
-      }
-      $ster->{'found'}= 1;
-    }
-
-=end comment
-=cut
-
-  }
-
-  print "finishing\n";
-  # save all tocs now
-
-=begin comment
-
-  foreach my $s (@stores)
-  {
-    my $f= $c . '/' . $s . '.toc.json';
-    print "saving toc to [$f]\n";
-    unless (open (TOC, '>:utf8', $f))
-    {
-      print STDERR "cant save toc file '$f'\n";
-      next;
-    }
-    print TOC encode_json ($stores{$s}), "\n";
-    close (TOC);
-  }
-
-
-=end comment
-=cut
-
-  # TODO: return something meaningful
-}
-
-# *verify_toc= *verify_toc_v1;
 
 =head1 sequence number
 
