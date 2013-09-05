@@ -6,17 +6,19 @@
 
 =head1 USAGE
 
-  vlib001.pl -p project-name -s store-name
+  vlib001.pl -p project-name [-s store-name] [paraemters]*
 
   options:
   * -p <project-name>
   * -s <store-name>
+  * --verify   ... verify/create TOC structures
   * --fileinfo ... refresh file info
+  * --lookup   ... lookup for hashes given as parameters
   * -D ... increase debug level
 
 =head1 DESCRIPTION
 
-updates the _catalog file using md5cat scripts and registers the files in
+Updates the _catalog file using md5cat scripts and registers the files in
 the project's object registry.  The environment variable TABASE must point
 to the directory where the object registry's configuration is stored.
 
@@ -76,17 +78,17 @@ exit if ($STOP);
 
 if ($op_mode eq 'refresh')
 {
-my $catalog= $objreg->{'cfg'}->{'catalog'};
-&usage ('no catalog found in config') unless (defined ($catalog));
+  my $catalog= $objreg->{'cfg'}->{'catalog'};
+  &usage ('no catalog found in config') unless (defined ($catalog));
 
-my $stores_p= $objreg->{'cfg'}->{'stores'};
-my $store_cfg= $stores_p->{$store};
-unless (defined ($store_cfg))
-{
-  print "no store config found for '$store', check these: ", Dumper ($stores_p);
-  exit (-2);
-}
-print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
+  my $stores_p= $objreg->{'cfg'}->{'stores'};
+  my $store_cfg= $stores_p->{$store};
+  unless (defined ($store_cfg))
+  {
+    print "no store config found for '$store', check these: ", Dumper ($stores_p);
+    exit (-2);
+  }
+  print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 
   if ($catalog->{'format'} eq 'md5cat')
   {
@@ -95,7 +97,9 @@ print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 }
 elsif ($op_mode eq 'verify')
 {
-  $objreg->verify_toc ($store);
+  my @hdr= qw(path_count path mtime fs_size ino);
+
+  $objreg->verify_toc (\&verify_toc_item, \@hdr);
 }
 elsif ($op_mode eq 'lookup')
 {
@@ -159,14 +163,18 @@ sub process_file
       return undef;
     }
 
-    my $xdata= { 'c_size' => $size, 'path' => $path, 'mtime' => $st[9], 'fs_size' => $st[7], 'ino' => $st[1] };
+    my $xdata=
+    {
+      'c_size' => $size, 'path' => $path, 'md5' => $md5,
+      'mtime' => $st[9], 'fs_size' => $st[7], 'ino' => $st[1]
+    };
 
     my $reg= $objreg->lookup ($md5);
 
     my @upd;
     my $ydata;   # pointer to file catalog data within main datastructure
     if (defined ($reg))
-    { # we know something about this hash value but not in respect to the repository at hand
+    { # we know something about this key value but not in respect to the repository at hand
       # print "json read: ", main::Dumper ($reg);
       my $sb;
       if (defined ($sb= $reg->{'store'}->{$store})
@@ -175,7 +183,7 @@ sub process_file
           && $st[7] == $ydata->{'fs_size'}
           && $st[9] == $ydata->{'mtime'}
         )
-      { # TODO: compare stored and current information
+      { # compare stored and current information and update if necessary
         foreach my $an (keys %$xdata)
         {
           unless ($ydata->{$an} eq $xdata->{$an})
@@ -187,22 +195,14 @@ sub process_file
       }
       else
       {
-        # print "st: fs_size(7)=[$st[7]] mtime(9)=[$st[9]]\n";
-        # print "ydata: ", Dumper ($ydata);
-        # print "xdata: ", Dumper ($xdata);
-
         $reg->{'store'}->{$store}->{'path'}->{$path}= $ydata= $xdata;
-        # print __LINE__, " reg: ", Dumper ($reg);
-        # print "ydata: ", Dumper ($ydata);
-        # print "xdata: ", Dumper ($xdata);
-
         push (@upd, 'store upd');
       }
     }
     else
-    {
+    { # this key is new, so we simply place what we know in the newly created registry item
       $reg= { 'key' => $md5, 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
-      push (@upd, 'new md5');
+      push (@upd, 'new key');
     }
 
     # fill in some more information about that file
@@ -212,10 +212,12 @@ sub process_file
       $xpath=~ s#'#'\\''#g;
       my $res= `/usr/bin/file '$xpath'`;
       chop ($res);
+
       my ($xpath, $fileinfo)= split (/: */, $res, 2);
       $ydata->{'fileinfo'}= $fileinfo;
       push (@upd, 'fileinfo updated');
     }
+
     # TODO: some more information would probably be nice as well
     # e.g. mp3info or stuff
 
@@ -229,6 +231,24 @@ sub process_file
   (wantarray) ? @upd : \@upd;
 }
 
+# callback function for TA::ObjReg::verify
+sub verify_toc_item
+{
+  my $j= shift;     # currently not used, that's the complete json entry for this item
+  my $jj= shift;    # this is just the part refering to the store currently processed
+  my $ster= shift;  # TOC item to be updated
+
+  my @paths= keys %{$jj->{'path'}};
+  $ster->{'path_count'}= scalar @paths;
+  my $p1= shift (@paths);
+  my $px1= $jj->{'path'}->{$p1};
+
+  $ster->{'path'}= $p1;
+  $ster->{'mtime'}= $px1->{'mtime'};
+  $ster->{'fs_size'}= $px1->{'fs_size'};
+  $ster->{'ino'}= $px1->{'ino'};
+}
+
 __END__
 
 =head1 TODO
@@ -238,9 +258,19 @@ __END__
   * The project's config contains all the information that is needed to
     locate all the stores on a given machine, so there should be an option
     that updates everything.
-  * specifing the store should be optional
+  * specifing the store should be optional.
+
+=head2 misc
+
   * maybe it makes sense to offer an option to perform backups along the
     way, for instance, when the store is actually a git repository.
-  * Also, checking the VCS status might (if not committing updates)
+  * also, checking the VCS status (if not committing updates)
     might be useful.
+  * other hashing algorithms:
+    * currently we use md5 for hashing, however, this could should
+      be fairly simple to adopt for sha1, sha256 or something else.
+    * possibly, it makes sense to allow several hashing algorithms
+      in parallel, however, then it might be a good idea to store
+      file metadata in one place and let other hashes point to that
+      place.
 

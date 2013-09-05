@@ -233,27 +233,24 @@ sub load_toc_v1
 sub verify_toc
 {
   my $reg= shift;
+  my $check_item= shift; # callback: update TOC item
+  my $hdr= shift || [];
 
-print "sub verify_toc_v1\n";
-  # my $store= shift; this does not make sense, we need to verify verything anyway
+  my @hdr1= qw(seq found store_count);
 
-  # my @stores= (defined ($store)) ? $store : $reg->stores();
   my @stores= $reg->stores();
   # print "stores: ", join (', ', @stores), "\n"; exit;
-  my %stores;
 
-  my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
-
-  # TODO: this is specific for vlib001.pl, this should be a passed as code ref!
-  my @hdr= qw(seq found store_count path_count path mtime fs_size ino);
-
+  #### my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
   my $c= $reg->{'proj_cat'};
+
   # pick up current tocs to see if the sequence needs to be updated
+  my %stores;
   foreach my $s (@stores)
   {
     my $f= $c . '/' . $s . '.toc.json';
     my $t= TA::Util::slurp_file ($f, 'json');
-    $t= {} unless (defined ($t)); # we need an empty toc if there is none yet
+    $t= {} unless (defined ($t)); # we need an empty toc if there is no toc yet
 
     $stores{$s}= $t;
   }
@@ -309,18 +306,10 @@ print "sub verify_toc_v1\n";
       }
       $ster->{'found'}= 1;
 
-      # TODO: this is specific for vlib001.pl, this should be a passed as code ref!
       my $jj= $j->{'store'}->{$store};
-      my @paths= keys %{$jj->{'path'}};
-      $ster->{'path_count'}= scalar @paths;
       $ster->{'store_count'}= scalar @i_stores;
-      my $p1= shift (@paths);
-      my $px1= $jj->{'path'}->{$p1};
 
-      $ster->{'path'}= $p1;
-      $ster->{'mtime'}= $px1->{'mtime'};
-      $ster->{'fs_size'}= $px1->{'fs_size'};
-      $ster->{'ino'}= $px1->{'ino'};
+      &$check_item($j, $jj, $ster) if (defined ($check_item));
     }
   }
 
@@ -347,13 +336,12 @@ print "sub verify_toc_v1\n";
       print STDERR "cant save toc file '$f'\n";
       next;
     }
-    print TOC join (';', 'key', @hdr), "\n";
+    print TOC join (';', 'key', @hdr1, @$hdr), "\n";
 
     foreach my $k (keys %$ss)
     {
       my $r= $ss->{$k};
-      # TODO: this is specific for vlib001.pl, this should be a passed as code ref!
-      print TOC join (';', $k, map { $r->{$_} } @hdr), "\n";
+      print TOC join (';', $k, map { $r->{$_} } @hdr1, @$hdr), "\n";
     }
 
     close (TOC);
