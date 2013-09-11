@@ -68,7 +68,13 @@ while (my $arg= shift (@ARGV))
 print "debug level: $DEBUG\n";
 
 &usage ('environment variable TABASE not set') unless (exists ($ENV{'TABASE'}));
-&usage ('no project specified') unless (defined ($project));
+# &usage ('no project specified') unless (defined ($project));
+unless (defined ($project))
+{
+  print "no project specified; check these:\n";
+  system ("ls -ls \"$ENV{'TABASE'}/projects\"");
+  exit (0);
+}
 # &usage ('no store specified') unless (defined ($store));
 
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store);
