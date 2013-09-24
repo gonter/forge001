@@ -207,7 +207,7 @@ sub process_file
     }
     else
     { # this key is new, so we simply place what we know in the newly created registry item
-      $reg= { 'key' => $md5, 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
+      $reg= { 'key' => $md5, 'key_type' => 'md5', 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
       push (@upd, 'new key');
     }
 
