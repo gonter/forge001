@@ -18,7 +18,8 @@ use JSON;
 use File::Find;
 
 use TA::Util;
-use TA::Hasher;
+
+my %plugins_loaded= ();
 
 sub new
 {
@@ -77,13 +78,35 @@ sub get_project
   # print "proj_cfg: ", main::Dumper ($proj_cfg);
   # TODO: check authorization (no need, if local, but for client-server, we need something
 
-  # initialize hasher
-  my $base_dir= $obj->{'proj_cfg_dir'};
-  $obj->{'proj_cat'}= my $proj_cat= join ('/', $base_dir, 'cat');
-  $obj->{'hasher'}= my $hasher= new TA::Hasher ('algorithm' => $proj_cfg->{'algorithm'}, 'pfx' => $proj_cat, 'name' => 'file');
+  my $be= $proj_cfg->{'backend'};
+  unless (exists ($plugins_loaded{$be}))
+  {
+       if ($be eq 'TA::Hasher')  { require TA::Hasher; }
+    elsif ($be eq 'TA::UrxnBla') { require TA::UrxnBla; }
+    elsif ($be eq 'MongoDB')     { require MongoDB; }
+    else
+    {
+      print "ATTN: unknown backend '$be'\n";
+      return undef;
+    }
+    $plugins_loaded{$be}= 1;
+  }
+
+  if ($be eq 'TA::Hasher')
+  {
+    # initialize hasher
+    my $ta= $proj_cfg->{'TA::Hasher'};
+    $ta->{'name'}= 'file';
+    $ta->{'pfx'}= $obj->{'proj_cat'}= my $proj_cat= join ('/', $proj_cfg_dir, 'cat');
+    $obj->{'hasher'}= my $hasher= new TA::Hasher (%$ta);
+  }
+  elsif ($be eq 'MongoDB')
+  {
+    $obj->connect_MongoDB ($proj_cfg);
+  }
 
   # get sequence number
-  $obj->{'seq_file'}= my $fnm_seq= join ('/', $base_dir, 'sequence.json');
+  $obj->{'seq_file'}= my $fnm_seq= join ('/', $proj_cfg_dir, 'sequence.json');
   $obj->{'seq'}= my $seq= TA::Util::slurp_file ($fnm_seq, 'json');
   # print "seq: ", main::Dumper ($seq);
   unless (defined ($seq))
@@ -121,20 +144,26 @@ returns that keys value, if present, otherwise, undef.
 sub lookup
 {
   my $obj= shift;
-  my $id_str= shift;
+  my $search= shift;
 
-  # print "lookup [$id_str]\n";
-  my @r= $obj->{'hasher'}->check_file ($id_str, 0);
-  # print "id_str=[$id_str] r=", main::Dumper (\@r);
-  my ($rc, $path)= @r;
+  my $be= $obj->{'cfg'}->{'backend'};
+  print "lookup [$search] be=[$be]\n";
+  print main::Dumper ($search);
 
-  my $fnm= $path . '/' . $id_str . '.json';
-  # print "description: [$fnm]\n";
-
-  my @st= stat ($fnm);
-  return undef unless (@st);
-
-  my $reg= TA::Util::slurp_file ($fnm, 'json');
+  my $reg;
+  if ($be eq 'TA::Hasher')
+  {
+    my $id_str= $search->{$obj->{'key'}};
+    my ($all_reg, $fnm)= $obj->ta_retrieve ($id_str, 0);
+    print "fnm=[$fnm] all_reg: ", main::Dumper ($all_reg);
+    return undef unless (defined ($all_reg));
+    ($reg)= ta_match ($all_reg, $search);
+  }
+  elsif ($be eq 'MongoDB')
+  {
+    $reg= $obj->{'_col'}->find_one ( $search );
+  }
+  # print "reg: ", main::Dumper ($reg);
  
   return $reg;
 }
@@ -142,25 +171,54 @@ sub lookup
 sub save
 {
   my $obj= shift;
-  my $id_str= shift;
+  my $search= shift;
   my $new_reg= shift;
 
-  print "save [$id_str]\n";
-  my @r= $obj->{'hasher'}->check_file ($id_str, 1);
-  # print "id_str=[$id_str] r=", main::Dumper (\@r);
-  my ($rc, $path)= @r;
+  my $be= $obj->{'cfg'}->{'backend'};
+  print "save [$new_reg] be=[$be]\n";
+  print main::Dumper ($new_reg);
+  if ($be eq 'TA::Hasher')
+  {
+    my $id_str= $search->{$obj->{'key'}};
+    my ($all_reg, $fnm)= $obj->ta_retrieve ($id_str, 1);
 
-  my $fnm= $path . '/' . $id_str . '.json';
-  # print "description: [$fnm]\n";
+=begin comment
 
-  my @st= stat ($fnm);
-  unless (@st)
-  { # TODO: increment sequence and toc
+    my @st= stat ($fnm);
+    unless (@st)
+    { # TODO: increment sequence and toc
+    }
+
+=end comment
+=cut
+
+    if (defined ($all_reg))
+    {
+      my ($reg, $idx)= ta_match ($all_reg, $search);
+      if (defined ($reg))
+      {
+        $all_reg->{'entries'}->[$idx]= $new_reg;
+      }
+      else
+      {
+        push (@{$all_reg->{'entries'}}, $new_reg);
+      }
+    }
+    else
+    {
+      $all_reg= { 'key' => $id_str, 'entries' => [ $new_reg ] }
+    }
+
+    my $j= encode_json ($all_reg);
+    print "fnm=[$fnm]\n";
+    print "generated json: [$j]\n";
+    open (J, '>:utf8', $fnm); print J $j; close (J);
   }
-
-  my $j= encode_json ($new_reg);
-  # print "generated json: [$j]\n";
-  open (J, '>:utf8', $fnm); print J $j; close (J);
+  elsif ($be eq 'MongoDB')
+  {
+    print "new_reg: ", main::Dumper ($new_reg);
+    $obj->{'_col'}->insert ($new_reg);
+  }
 }
 
 =head1 TOC: Table of Contents
@@ -385,7 +443,99 @@ sub next_seq
   $seq->{'seq'};
 }
 
-# =head1 INTERNAL FUNCTIONS
+=head1 INTERNAL METHODS
+
+=head2 $mongo_collection= $obj->connect_MongoDB ($config);
+
+Connect to MongoDB with connection parameters in hash_ref $config and
+returns the MongoDB collection object.
+
+$config needs the following attribues: host, db, user, pass, collection
+
+=cut
+
+sub connect_MongoDB
+{
+  my $obj= shift;
+  my $cfg= shift;
+
+  my $cmm= $cfg->{'MongoDB'};
+  print "cmm: ", main::Dumper ($cmm);
+
+  my $col;
+  eval
+  {
+    my $connection= MongoDB::Connection->new(host => $cmm->{'host'});
+    $connection->authenticate($cmm->{'db'}, $cmm->{'user'}, $cmm->{'pass'});
+    my $db= $connection->get_database($cmm->{'db'});
+    $col= $db->get_collection($cmm->{'collection'});
+    print "col: [$col]\n";
+  };
+  if ($@)
+  {
+    print "ATTN: can't connect to MongoDB ", (join ('/', map { $cmm->{$_} } qw(host user collection))), "\n";
+    return undef;
+  }
+
+  return $obj->{'_col'}= $col;
+}
+
+=head2 ($data, $fnm)= $objreg->ta_retrieve ($key, $create)
+
+Retrieve and return data referenced by $key and returns path name of
+that file.  If $create is true, the path leading to that file is created,
+when it is not already present.
+
+=cut
+
+sub ta_retrieve
+{
+  my $obj= shift;
+  my $id_str= shift;
+  my $create= shift;
+
+    my @r= $obj->{'hasher'}->check_file ($id_str, $create);
+    # print "id_str=[$id_str] r=", main::Dumper (\@r);
+    my ($rc, $path)= @r;
+
+    my $fnm= $path . '/' . $id_str . '.json';
+    # print "description: [$fnm]\n";
+
+    my @st= stat ($fnm);
+    return (undef, $fnm) unless (@st);
+
+    my $all_reg= TA::Util::slurp_file ($fnm, 'json');
+
+  return ($all_reg, $fnm);
+}
+
+=head1 INTERNAL FUNCTIONS
+
+=head2 ($entry, $index)= ta_match ($data, $search)
+
+Select first $entry from $data that matches hash ref $search.
+
+=cut
+
+sub ta_match
+{
+  my $all_reg= shift;
+  my $search= shift;
+
+  my @k= keys $search;
+  my @e= @{$all_reg->{'entries'}};
+  REG: for (my $i= 0; $i <= $#e; $i++)
+  {
+    my $reg= $e[$i];
+    foreach my $k (@k)
+    {
+      next REG unless ($reg->{$k} eq $search->{$k});
+    }
+    print "found match: ", main::Dumper ($reg);
+    return ($reg, $i);
+  }
+  return (undef, 0);
+}
 
 1;
 __END__

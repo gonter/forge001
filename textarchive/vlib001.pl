@@ -77,7 +77,7 @@ unless (defined ($project))
 }
 # &usage ('no store specified') unless (defined ($store));
 
-my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store);
+my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => 'md5');
 &usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
 exit if ($STOP);
@@ -171,48 +171,39 @@ sub process_file
 
     my $xdata=
     {
+      # 'key' => $md5, 'key_type' => 'md5',
+      'store' => $store,
       'c_size' => $size, 'path' => $path, 'md5' => $md5,
       'mtime' => $st[9], 'fs_size' => $st[7], 'ino' => $st[1]
     };
 
-    my $reg= $objreg->lookup ($md5);
+    my $search= { 'md5' => $md5, 'store' => $store, 'path' => $path };
+    my $reg= $objreg->lookup ($search);
+    print __LINE__, " reg: ", Dumper ($reg);
 
     my @upd;
     my $ydata;   # pointer to file catalog data within main datastructure
     if (defined ($reg))
     { # we know something about this key value but not in respect to the repository at hand
       # print "json read: ", main::Dumper ($reg);
-      my $sb;
-      if (defined ($sb= $reg->{'store'}->{$store})
-          && exists ($sb->{'path'})
-          && defined ($ydata= $sb->{'path'}->{$path}) # we need to keep track of the path as well otherwise we can't handly duplicates in the same store
-          && $st[7] == $ydata->{'fs_size'}
-          && $st[9] == $ydata->{'mtime'}
-        )
-      { # compare stored and current information and update if necessary
         foreach my $an (keys %$xdata)
         {
-          unless ($ydata->{$an} eq $xdata->{$an})
+          unless ($reg->{$an} eq $xdata->{$an})
           {
-            $ydata->{$an}= $xdata->{$an};
+            $reg->{$an}= $xdata->{$an};
             push (@upd, $an);
           }
         }
-      }
-      else
-      {
-        $reg->{'store'}->{$store}->{'path'}->{$path}= $ydata= $xdata;
-        push (@upd, 'store upd');
-      }
     }
     else
     { # this key is new, so we simply place what we know in the newly created registry item
-      $reg= { 'key' => $md5, 'key_type' => 'md5', 'store' => { $store => { 'path' => { $path => $ydata= $xdata } } } };
+      # $reg= { 'key' => $md5, 'key_type' => 'md5', 'store' => { $store => $ydata= $xdata } };
+      $reg= $xdata;
       push (@upd, 'new key');
     }
 
     # fill in some more information about that file
-    if (!exists ($ydata->{'fileinfo'}) || $refresh_fileinfo)
+    if (!exists ($reg->{'fileinfo'}) || $refresh_fileinfo)
     {
       my $xpath= $path;
       $xpath=~ s#'#'\\''#g;
@@ -220,7 +211,7 @@ sub process_file
       chop ($res);
 
       my ($xpath, $fileinfo)= split (/: */, $res, 2);
-      $ydata->{'fileinfo'}= $fileinfo;
+      $reg->{'fileinfo'}= $fileinfo;
       push (@upd, 'fileinfo updated');
     }
 
@@ -231,7 +222,7 @@ sub process_file
   {
     print "saving (", join ('|', @upd), ")\n";
     # print __LINE__, " reg: ", Dumper ($reg);
-    $objreg->save ($md5, $reg);
+    $objreg->save ($search, $reg);
   }
 
   (wantarray) ? @upd : \@upd;
