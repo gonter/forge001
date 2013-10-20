@@ -32,6 +32,7 @@ $Data::Dumper::Indent= 1;
 use TA::ObjReg;
 # use TA::Hasher;
 # use TA::Util;
+use md5cat;
 
 my @PAR= ();
 my $project;
@@ -40,6 +41,14 @@ my $refresh_fileinfo= 0;
 my $DEBUG= 0;
 my $STOP= 0;
 my $op_mode= 'refresh';
+
+my @hdr= qw(md5 path mtime fs_size ino);
+
+# --- 8< --- [from chkmd5.pl] ---
+# my $Dir_Pattern= '[0-9_a-zA-Z]*';
+my $Dir_Pattern= '.';
+my $DEFAULT_file_list= "find $Dir_Pattern -xdev -type f -print|";
+# --- >8 ---
 
 while (my $arg= shift (@ARGV))
 {
@@ -96,15 +105,11 @@ if ($op_mode eq 'refresh')
   }
   print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 
-  if ($catalog->{'format'} eq 'md5cat')
-  {
-    refresh_md5cat ($objreg, $store);
-  }
+     if ($catalog->{'format'} eq 'md5cat')   { refresh_md5cat   ($objreg, $store); }
+  elsif ($catalog->{'format'} eq 'internal') { refresh_internal ($objreg, $store); }
 }
 elsif ($op_mode eq 'verify')
 {
-  my @hdr= qw(path_count path mtime fs_size ino);
-
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
 }
 elsif ($op_mode eq 'lookup')
@@ -158,6 +163,108 @@ sub refresh_md5cat
   printf ("%6d files processed; %6d files updated\n", $cnt_processed, $cnt_updated);
 }
 
+sub refresh_internal
+{
+  my $objreg= shift;
+  my $store= shift;
+  my %extra= @_;
+
+  my $cnt_processed= 0;
+  my $cnt_updated= 0;
+  my $cnt_dropped= 0;
+
+  $objreg->verify_toc (\&verify_toc_item, \@hdr);
+  my $toc= $objreg->load_single_toc ($store);
+  # print "toc: ", Dumper ($toc);
+
+  my $md5cat= new md5cat ();
+  $md5cat->read_flist ($DEFAULT_file_list);
+  # print "md5cat: ", Dumper ($md5cat);
+
+  # compare TOC and reference filelist
+  my $fl= $md5cat->{'FLIST'};
+  my %key= ();
+  foreach my $x (@$toc)
+  {
+# print __LINE__, " k=[$k]\n";
+    my $k= $x->{'key'};
+    my $p= $x->{'path'};
+    $key{$k}->{$p}= 0;
+
+    if (exists ($fl->{$p}))
+    {
+      $cnt_processed++;
+      my $f= $fl->{$p};
+      my $matches= 1;
+      AN: foreach my $an (qw(mtime size ino))
+      {
+        unless ($f->{$an} eq $x->{$an})
+        {
+          # print "mismatch in [$an]! x: ", Dumper ($x); print "f: ", Dumper ($f);
+          $matches= 0;
+          last AN;
+        }
+      }
+
+# print "matches: $p $matches\n";
+      if ($matches)
+      {
+        $f->{'state'}= 'nocheck';
+        $f->{'md5'}= $x->{'md5'};
+      }
+    }
+    else
+    {
+      # print "file missing: ", Dumper ($x);
+      $cnt_dropped++;
+    }
+  }
+  # my %paths= map { my $x= $toc->{$_}; $x->{'found'}= 0; $x->{'path'} => $x } keys %$toc;
+  # print "paths: ", Dumper (\%paths);
+  # print "fl: ", Dumper ($fl);
+
+  my $new_files= $md5cat->check_new_files ();
+  # print "new_files: ", Dumper ($new_files);
+  $md5cat->integrate_md5_sums ($new_files);
+  # $md5cat->save_catalog (); # TODO: if save_catalog flag is true!
+
+# ZZZ
+  # update the Object registry with new items
+  foreach my $nf (@$new_files)
+  {
+    my ($md5, $path, $size, $mtime)= @$nf;
+    # print "md5=[$md5] size=[$size] path=[$path]\n";
+
+    $cnt_processed++;
+    my @upd= process_file ($md5, $path, $size);
+    $cnt_updated++ if (@upd);
+  }
+
+  # get filelist again after reintegration to find keys which are no longer in the catalog
+  $fl= $md5cat->{'FLIST'};
+  # print __LINE__, " fl: ", Dumper ($fl);
+  foreach my $p (keys %$fl)
+  {
+    $key{$fl->{$p}->{'md5'}}->{$p}= 1;
+  }
+  # print __LINE__, " key: ", Dumper (\%key);
+
+  my @drop= ();
+  foreach my $k (keys %key)
+  {
+    my $x1= $key{$k};
+    foreach my $p (keys %$x1)
+    {
+      push (@drop, [$k, $p]) if ($x1->{$p} == 0);
+    }
+  }
+  # print __LINE__, " drop: ", Dumper (\@drop);
+
+  $objreg->remove_from_store ($store, \@drop);
+
+  printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n", $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
+}
+
 sub process_file
 {
   my ($md5, $path, $size)= @_;
@@ -179,7 +286,7 @@ sub process_file
 
     my $search= { 'md5' => $md5, 'store' => $store, 'path' => $path };
     my $reg= $objreg->lookup ($search);
-    print __LINE__, " reg: ", Dumper ($reg);
+    # print __LINE__, " reg: ", Dumper ($reg);
 
     my @upd;
     my $ydata;   # pointer to file catalog data within main datastructure
@@ -220,7 +327,7 @@ sub process_file
 
   if (@upd)
   {
-    print "saving (", join ('|', @upd), ")\n";
+    # print "saving (", join ('|', @upd), ")\n";
     # print __LINE__, " reg: ", Dumper ($reg);
     $objreg->save ($search, $reg);
   }
@@ -235,15 +342,15 @@ sub verify_toc_item
   my $jj= shift;    # this is just the part refering to the store currently processed
   my $ster= shift;  # TOC item to be updated
 
-  my @paths= keys %{$jj->{'path'}};
-  $ster->{'path_count'}= scalar @paths;
-  my $p1= shift (@paths);
-  my $px1= $jj->{'path'}->{$p1};
+# print __LINE__, " verify_toc_item: j=", Dumper ($j);
+print __LINE__, " verify_toc_item: jj=", Dumper ($jj);
+  # my @paths= keys %{$jj->{'path'}};
+  # $ster->{'path_count'}= scalar @paths;  ... we don't see that this way anymore
 
-  $ster->{'path'}= $p1;
-  $ster->{'mtime'}= $px1->{'mtime'};
-  $ster->{'fs_size'}= $px1->{'fs_size'};
-  $ster->{'ino'}= $px1->{'ino'};
+  foreach my $k (qw(md5 path mtime fs_size ino))
+  {
+    $ster->{$k}= $jj->{$k};
+  }
 }
 
 __END__

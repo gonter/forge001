@@ -175,8 +175,9 @@ sub save
   my $new_reg= shift;
 
   my $be= $obj->{'cfg'}->{'backend'};
-  print "save [$new_reg] be=[$be]\n";
-  print main::Dumper ($new_reg);
+  # print "save [$new_reg] be=[$be]\n";
+  # print main::Dumper ($new_reg);
+
   if ($be eq 'TA::Hasher')
   {
     my $id_str= $search->{$obj->{'key'}};
@@ -210,8 +211,8 @@ sub save
     }
 
     my $j= encode_json ($all_reg);
-    print "fnm=[$fnm]\n";
-    print "generated json: [$j]\n";
+    # print "fnm=[$fnm]\n";
+    # print "generated json: [$j]\n";
     open (J, '>:utf8', $fnm); print J $j; close (J);
   }
   elsif ($be eq 'MongoDB')
@@ -288,13 +289,77 @@ sub load_toc_v1
   $toc;
 }
 
+sub load_single_toc
+{
+  my $reg= shift;
+  my $store= shift;
+  my $cache= shift;
+
+  my $c= $reg->{'proj_cat'};
+  return undef unless (defined ($c)); # not initialized?
+
+    my $f= $c . '/' . $store . '.toc.json';
+    my $t= TA::Util::slurp_file ($f, 'json');
+    if ($cache)
+    {
+      $reg->{'tocs'}->{$store}= $t;
+    }
+
+  $t;
+}
+
+sub load_multi_tocs
+{
+  my $reg= shift;
+  my $store= shift;
+  my $cache= shift;
+
+  my $c= $reg->{'proj_cat'};
+  return undef unless (defined ($c)); # not initialized?
+
+  my @stores= (defined ($store)) ? $store : $reg->stores();
+
+  return undef unless (@stores); # return nothing if there is nothing...
+
+  my $toc= {};
+  foreach my $s (@stores)
+  {
+    my $f= $c . '/' . $s . '.toc.json';
+    my $t= TA::Util::slurp_file ($f, 'json');
+    if ($cache)
+    {
+      $reg->{'tocs'}->{$s}= $t;
+    }
+
+    foreach my $k (keys %$t)
+    {
+      my $tk= $t->{$k};
+# print "k=[$k] item: ", main::Dumper ($tk);
+      my $r;
+
+      unless (defined ($r= $toc->{$k}))
+      { # not yet present in the toc
+        $toc->{$k}= $r= { 'seq' => $t->{$k}->{'seq'} };
+      }
+
+# print "r: ", main::Dumper ($r);
+
+      push (@{$r->{'stores'}}, { 'store' => $s, 'upd' => $tk->{'upd'} });
+    }
+  }
+
+  $toc;
+}
+
 sub verify_toc
 {
   my $reg= shift;
   my $check_item= shift; # callback: update TOC item
   my $hdr= shift || [];
+  my $reset= shift;
 
-  my @hdr1= qw(seq found store_count);
+  my @hdr1= qw(key seq found store_count);
+  # my @hdr1= qw(seq store_count);
 
   my @stores= $reg->stores();
   # print "stores: ", join (', ', @stores), "\n"; exit;
@@ -302,15 +367,38 @@ sub verify_toc
   #### my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
   my $c= $reg->{'proj_cat'};
 
+  # get list of key to sequence mapping
+  my $fnm_key_seq= $c . '/KEY-SEQ.toc.json';
+  my $KEY_SEQ;
+  $KEY_SEQ= TA::Util::slurp_file ($fnm_key_seq, 'json') unless ($reset);
+  $KEY_SEQ= {} unless (defined $KEY_SEQ);
+
   # pick up current tocs to see if the sequence needs to be updated
   my %stores;
   foreach my $s (@stores)
   {
-    my $f= $c . '/' . $s . '.toc.json';
-    my $t= TA::Util::slurp_file ($f, 'json');
-    $t= {} unless (defined ($t)); # we need an empty toc if there is no toc yet
 
+=begin comment
+
+    my $f= $c . '/' . $s . '.toc.json';
+    my $t;
+    $t= TA::Util::slurp_file ($f, 'json') unless ($reset);
+    if (defined ($t))
+    {
+      foreach my $e (@$t) { $e->{'found'}= 0; }
+    }
+    else
+    {
+      $t= []; # we need an empty toc if there is no toc yet
+    }
     $stores{$s}= $t;
+
+  ... dunno ... do we need the old toc?
+
+=end comment
+=cut
+
+    $stores{$s}= [];
   }
 
   my %items;
@@ -329,45 +417,45 @@ sub verify_toc
   print "proj_cat=[$d]\n";
   find (\&item_files, $d);
 
+  my $key_seq_updated= 0;
   # print "items: ", main::Dumper (\%items);
   foreach my $item (keys %items)
   {
     my $p= $items{$item};
     my $j= TA::Util::slurp_file ($p->[0], 'json');
-    # print "[$p->[0]] j: ", main::Dumper ($j);
-    my @i_stores= keys %{$j->{'store'}};
+    print "[$p->[0]] j: ", main::Dumper ($j);
+
     my $key= $j->{'key'};
-    # print join (' ', $key, @i_stores), "\n";
+    my $seq= $KEY_SEQ->{$key};
+    unless (defined ($seq))
+    {
+      $seq= $KEY_SEQ->{$key}= $reg->next_seq();
+      $key_seq_updated++;
+    }
 
     # search for a key's sequence number in all known stores, not only
     # in those that are *currently* used for this store
-    my $seq;
-    S1: foreach my $store (@stores)
+    my (@i_stores, %i_stores);
+    E1: foreach my $jj (@{$j->{'entries'}})
     {
-      if (exists ($stores{$store}->{$key}))
-      {
-        $seq= $stores{$store}->{$key}->{'seq'};
-        last S1;
-      }
-    }
+      my $store= $jj->{'store'};
 
-    S2: foreach my $store (@i_stores)
-    {
-      my $ster; # store's toc entry record ;)
-      unless (defined ($ster= $stores{$store}->{$key}))
-      {
-        $ster= $stores{$store}->{$key}=
-        {
-          'seq' => $reg->next_seq(),
-          'upd' =>  time (),
-        };
-      }
-      $ster->{'found'}= 1;
+      print join ('/', $key, $seq, $store), "\n";
 
-      my $jj= $j->{'store'}->{$store};
-      $ster->{'store_count'}= scalar @i_stores;
+      $i_stores{$store}= $jj;
+      push (@i_stores, $store);
+ 
+      my $ster=
+      {
+        'key' => $key,
+        'seq' => $seq,
+        'found' => 0, # flag that indicates if object is present (not used here?)
+        'upd' =>  time (),
+      };
 
       &$check_item($j, $jj, $ster) if (defined ($check_item));
+      print "ster: ", main::Dumper ($ster);
+      push (@{$stores{$store}}, $ster);
     }
   }
 
@@ -377,6 +465,7 @@ sub verify_toc
   {
     my $ss= $stores{$s};
 
+    # save TOC in json format
     my $f= $c . '/' . $s . '.toc.json';
     print "saving toc to [$f]\n";
     unless (open (TOC, '>:utf8', $f))
@@ -387,6 +476,7 @@ sub verify_toc
     print TOC encode_json ($ss), "\n";
     close (TOC);
 
+    # save TOC in CSV format
     $f= $c . '/' . $s . '.toc.csv';
     print "saving toc to [$f]\n";
     unless (open (TOC, '>:utf8', $f))
@@ -394,18 +484,96 @@ sub verify_toc
       print STDERR "cant save toc file '$f'\n";
       next;
     }
-    print TOC join (';', 'key', @hdr1, @$hdr), "\n";
+    print TOC join (';', @hdr1, @$hdr), "\n";
 
-    foreach my $k (keys %$ss)
+    foreach my $r (@$ss)
     {
-      my $r= $ss->{$k};
-      print TOC join (';', $k, map { $r->{$_} } @hdr1, @$hdr), "\n";
-    }
+    print __LINE__, " r: ", main::Dumper ($r);
+      print TOC join (';', map { $r->{$_} } @hdr1), ';';
 
+      if (1 || $r->{'found'})
+      {
+        print TOC join (';', map { $r->{$_} } @$hdr);
+      }
+      else
+      {
+        print TOC join (';', map { '' } @$hdr);
+      }
+        
+      print TOC "\n";
+    }
     close (TOC);
   }
 
+  if ($key_seq_updated)
+  {
+    print "saving toc to [$fnm_key_seq]\n";
+    unless (open (KEY_SEQ, '>:utf8', $fnm_key_seq))
+    {
+      print STDERR "cant save toc file '$fnm_key_seq'\n";
+      next;
+    }
+    print KEY_SEQ encode_json ($KEY_SEQ), "\n";
+    close (KEY_SEQ);
+  }
+
   # TODO: return something meaningful
+}
+
+sub remove_from_store
+{
+  my $reg= shift;
+  my $store= shift;
+  my $drop_list= shift; # array ref containing entries: [ $md5, $path ]
+  # TODO: maybe a more universial format could be useful
+
+  my $be= $reg->{'cfg'}->{'backend'};
+  if ($be eq 'TA::Hasher')
+  {
+    my %drop;
+    foreach my $item (@$drop_list)
+    {
+      my ($id_str, $path)= @$item;
+      my ($r, $fnm)= $reg->ta_retrieve ($id_str);
+      # print "id_str=[$id_str] fnm=[$fnm] r: ", main::Dumper ($r);
+
+      next unless (defined ($r)); # this item has possibly been deleted already
+
+      my @new_entries= ();
+      my @dropped_entries= ();
+      foreach my $entry (@{$r->{'entries'}})
+      {
+        if ($entry->{'store'} eq $store && $entry->{'path'} eq $path)
+        {
+          push (@dropped_entries, $entry);
+        }
+        else
+        {
+          push (@new_entries, $entry);
+        }
+      }
+      $drop{$id_str}= \@dropped_entries;
+
+      if (@new_entries)
+      {
+        $r->{'entries'}= \@new_entries;
+
+        my $j= encode_json ($r);
+        # print "generated json: [$j]\n";
+        open (J, '>:utf8', $fnm); print J $j; close (J);
+      }
+      else
+      {
+        # print "nothing left to be saved; deleting file [$fnm]\n";
+        unlink ($fnm);
+      }
+    }
+    return \%drop;
+  }
+  elsif ($be eq 'MongoDB')
+  {
+    die ("implement MongoDB remove");
+  }
 }
 
 =head1 sequence number
@@ -531,7 +699,7 @@ sub ta_match
     {
       next REG unless ($reg->{$k} eq $search->{$k});
     }
-    print "found match: ", main::Dumper ($reg);
+    # print "found match: ", main::Dumper ($reg);
     return ($reg, $i);
   }
   return (undef, 0);
