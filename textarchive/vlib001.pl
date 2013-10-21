@@ -116,7 +116,7 @@ elsif ($op_mode eq 'lookup')
 {
   foreach my $key (@PAR)
   {
-    my $res= $objreg->lookup ($key);
+    my $res= $objreg->lookup ( { 'md5' => $key } );
     print "res: ", Dumper ($res);
   }
 }
@@ -180,12 +180,16 @@ sub refresh_internal
   my $md5cat= new md5cat ();
   $md5cat->read_flist ($DEFAULT_file_list);
   # print "md5cat: ", Dumper ($md5cat);
+  print "flist processed\n";
 
   # compare TOC and reference filelist
   my $fl= $md5cat->{'FLIST'};
   my %key= ();
+  my $cnt= 0;
+  printf ("%6d items to be processed\n", scalar @$toc);
   foreach my $x (@$toc)
   {
+    printf ("%6d items processed\n", $cnt) if ((++$cnt % 100) == 0);
 # print __LINE__, " k=[$k]\n";
     my $k= $x->{'key'};
     my $p= $x->{'path'};
@@ -223,13 +227,16 @@ sub refresh_internal
   # print "paths: ", Dumper (\%paths);
   # print "fl: ", Dumper ($fl);
 
+print __LINE__, " check_new_files\n";
   my $new_files= $md5cat->check_new_files ();
   # print "new_files: ", Dumper ($new_files);
+print __LINE__, " integrate_md5_sums\n";
   $md5cat->integrate_md5_sums ($new_files);
   # $md5cat->save_catalog (); # TODO: if save_catalog flag is true!
 
 # ZZZ
   # update the Object registry with new items
+  printf ("%6d new items to be processed\n", scalar @$new_files);
   foreach my $nf (@$new_files)
   {
     my ($md5, $path, $size, $mtime)= @$nf;
@@ -343,7 +350,7 @@ sub verify_toc_item
   my $ster= shift;  # TOC item to be updated
 
 # print __LINE__, " verify_toc_item: j=", Dumper ($j);
-print __LINE__, " verify_toc_item: jj=", Dumper ($jj);
+# print __LINE__, " verify_toc_item: jj=", Dumper ($jj);
   # my @paths= keys %{$jj->{'path'}};
   # $ster->{'path_count'}= scalar @paths;  ... we don't see that this way anymore
 

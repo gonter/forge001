@@ -367,8 +367,8 @@ sub verify_toc
   #### my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
   my $c= $reg->{'proj_cat'};
 
-  # get list of key to sequence mapping
-  my $fnm_key_seq= $c . '/KEY-SEQ.toc.json';
+  # get key to sequence mapping
+  my $fnm_key_seq= $reg->{'proj_cfg_dir'} . '/KEY-SEQ.json';
   my $KEY_SEQ;
   $KEY_SEQ= TA::Util::slurp_file ($fnm_key_seq, 'json') unless ($reset);
   $KEY_SEQ= {} unless (defined $KEY_SEQ);
@@ -423,7 +423,7 @@ sub verify_toc
   {
     my $p= $items{$item};
     my $j= TA::Util::slurp_file ($p->[0], 'json');
-    print "[$p->[0]] j: ", main::Dumper ($j);
+    # print "[$p->[0]] j: ", main::Dumper ($j);
 
     my $key= $j->{'key'};
     my $seq= $KEY_SEQ->{$key};
@@ -440,7 +440,7 @@ sub verify_toc
     {
       my $store= $jj->{'store'};
 
-      print join ('/', $key, $seq, $store), "\n";
+      # print join ('/', $key, $seq, $store), "\n";
 
       $i_stores{$store}= $jj;
       push (@i_stores, $store);
@@ -454,7 +454,7 @@ sub verify_toc
       };
 
       &$check_item($j, $jj, $ster) if (defined ($check_item));
-      print "ster: ", main::Dumper ($ster);
+      # print "ster: ", main::Dumper ($ster);
       push (@{$stores{$store}}, $ster);
     }
   }
@@ -488,7 +488,7 @@ sub verify_toc
 
     foreach my $r (@$ss)
     {
-    print __LINE__, " r: ", main::Dumper ($r);
+      # print __LINE__, " r: ", main::Dumper ($r);
       print TOC join (';', map { $r->{$_} } @hdr1), ';';
 
       if (1 || $r->{'found'})
