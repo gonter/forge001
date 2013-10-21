@@ -58,7 +58,7 @@ while (my $arg= shift (@ARGV))
        if ($arg eq '--project')  { $project= shift (@ARGV); }
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
-    elsif ($arg =~ /^--(refresh|verify|lookup)$/) { $op_mode= $1; }
+    elsif ($arg =~ /^--(refresh|verify|lookup|edit)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
   {
@@ -111,6 +111,13 @@ if ($op_mode eq 'refresh')
 elsif ($op_mode eq 'verify')
 {
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
+}
+elsif ($op_mode eq 'edit')
+{
+  print "objreg: ", Dumper ($objreg);
+  my $proj_cfg_fnm= $objreg->{'proj_cfg_fnm'};
+  system ("\$EDITOR '$proj_cfg_fnm'");
+  # print "store_cfg: ", Dumper ($store_cfg);
 }
 elsif ($op_mode eq 'lookup')
 {
@@ -186,6 +193,9 @@ sub refresh_internal
   my $fl= $md5cat->{'FLIST'};
   my %key= ();
   my $cnt= 0;
+  if (defined ($toc))
+  {
+  # print "toc: ", Dumper ($toc);
   printf ("%6d items to be processed\n", scalar @$toc);
   foreach my $x (@$toc)
   {
@@ -226,6 +236,7 @@ sub refresh_internal
   # my %paths= map { my $x= $toc->{$_}; $x->{'found'}= 0; $x->{'path'} => $x } keys %$toc;
   # print "paths: ", Dumper (\%paths);
   # print "fl: ", Dumper ($fl);
+  }
 
 print __LINE__, " check_new_files\n";
   my $new_files= $md5cat->check_new_files ();
