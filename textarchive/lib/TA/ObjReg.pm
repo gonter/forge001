@@ -522,51 +522,20 @@ sub verify_toc
 
 sub remove_from_store
 {
-  my $reg= shift;
+  my $objreg= shift;
   my $store= shift;
   my $drop_list= shift; # array ref containing entries: [ $md5, $path ]
   # TODO: maybe a more universial format could be useful
 
-  my $be= $reg->{'cfg'}->{'backend'};
+  my $be= $objreg->{'cfg'}->{'backend'};
   if ($be eq 'TA::Hasher')
   {
     my %drop;
     foreach my $item (@$drop_list)
     {
       my ($id_str, $path)= @$item;
-      my ($r, $fnm)= $reg->ta_retrieve ($id_str);
-      # print "id_str=[$id_str] fnm=[$fnm] r: ", main::Dumper ($r);
-
-      next unless (defined ($r)); # this item has possibly been deleted already
-
-      my @new_entries= ();
-      my @dropped_entries= ();
-      foreach my $entry (@{$r->{'entries'}})
-      {
-        if ($entry->{'store'} eq $store && $entry->{'path'} eq $path)
-        {
-          push (@dropped_entries, $entry);
-        }
-        else
-        {
-          push (@new_entries, $entry);
-        }
-      }
-      $drop{$id_str}= \@dropped_entries;
-
-      if (@new_entries)
-      {
-        $r->{'entries'}= \@new_entries;
-
-        my $j= encode_json ($r);
-        # print "generated json: [$j]\n";
-        open (J, '>:utf8', $fnm); print J $j; close (J);
-      }
-      else
-      {
-        # print "nothing left to be saved; deleting file [$fnm]\n";
-        unlink ($fnm);
-      }
+      my ($new_rec, $removed)= $objreg->ta_remove ($id_str, { 'store' => $store, 'path' => $path } );
+      $drop{$id_str}= $removed if (@$removed);
     }
     return \%drop;
   }
@@ -575,6 +544,39 @@ sub remove_from_store
     die ("implement MongoDB remove");
   }
 }
+
+=begin comment
+=head2 $objreg->remove_store ($store);
+
+remove all items that belong to a certain store
+
+sub remove_store
+{
+  my $reg= shift;
+  my $store= shift;
+  # TODO: again, maybe a more universial format could be useful
+
+  my $be= $reg->{'cfg'}->{'backend'};
+  if ($be eq 'TA::Hasher')
+  {
+    my %drop;
+    # TODO: need a function that returns all the items (that belong to that store)
+    foreach my $item (@$drop_list)
+    {
+      my ($id_str, $path)= @$item;
+      my ($new_rec, $removed)= $objreg->ta_remove ($id_str, { 'store' => $store, 'path' => $path } );
+      $drop{$id_str}= $removed if (@$removed);
+    }
+    return \%drop;
+  }
+  elsif ($be eq 'MongoDB')
+  {
+    die ("implement MongoDB remove");
+  }
+}
+
+=end comment
+=cut
 
 =head1 sequence number
 
@@ -677,6 +679,47 @@ sub ta_retrieve
   return ($all_reg, $fnm);
 }
 
+=head2 ($data, $removed)= $objreg->ta_remove ($key, $filter)
+
+remove that items that match the filter; returns new record and a array-ref of removed items
+
+=cut
+
+sub ta_remove
+{
+  my $reg= shift;
+  my $id_str= shift;
+  my $filter= shift;
+
+  my ($r, $fnm)= $reg->ta_retrieve ($id_str);
+  # print "id_str=[$id_str] fnm=[$fnm] r: ", main::Dumper ($r);
+
+  return undef unless (defined ($r)); # this item has possibly been deleted already
+
+  my ($m, $n)= ta_filter ($r, $filter);
+
+  if (@$m && @$n) # something filtered, something removed, so we need to update that file
+  {
+    $r->{'entries'}= $m;
+
+    my $j= encode_json ($r);
+    # print "generated json: [$j]\n";
+    open (J, '>:utf8', $fnm); print J $j; close (J);
+  }
+  elsif (!@$m && @$n) #
+  {
+    print "nothing left to be saved; deleting file [$fnm]\n";
+    unlink ($fnm);
+    $r= undef;
+  }
+  else
+  {
+    print "nothing removed; no change\n";
+  }
+
+  ($r, $n);
+}
+
 =head1 INTERNAL FUNCTIONS
 
 =head2 ($entry, $index)= ta_match ($data, $search)
@@ -703,6 +746,39 @@ sub ta_match
     return ($reg, $i);
   }
   return (undef, 0);
+}
+
+=head2 (\@matching, \@not_matching)= ta_filter ($data, $search)
+
+Returns two sets of rows, those that match the search reocord and those that do not.
+
+=cut
+
+sub ta_filter
+{
+  my $all_reg= shift;
+  my $search= shift;
+
+  my @k= keys $search;
+  my @e= @{$all_reg->{'entries'}};
+  my @m= ();
+  my @n= ();
+  REG: for (my $i= 0; $i <= $#e; $i++)
+  {
+    my $reg= $e[$i];
+    foreach my $k (@k)
+    {
+      unless ($reg->{$k} eq $search->{$k})
+      {
+        push (@n, $reg);
+        next REG;
+      }
+    }
+    # print "found match: ", main::Dumper ($reg);
+    push (@m, $reg);
+  }
+
+  return (\@m, \@n);
 }
 
 1;
