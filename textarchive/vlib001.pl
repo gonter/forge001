@@ -183,7 +183,7 @@ sub refresh_internal
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
   print "toc verfified\n";
   my $toc= $objreg->load_single_toc ($store);
-  # print "toc: ", Dumper ($toc);
+  print "toc: ", Dumper ($toc);
 
   my $md5cat= new md5cat ();
   $md5cat->read_flist ($DEFAULT_file_list);
