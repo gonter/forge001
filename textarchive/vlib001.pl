@@ -277,13 +277,20 @@ print __LINE__, " integrate_md5_sums\n";
       push (@drop, [$k, $p]) if ($x1->{$p} == 0);
     }
   }
-  print __LINE__, " drop: ", Dumper (\@drop);
+  print __LINE__, " drop: (", scalar @drop, ") ", Dumper (\@drop);
 
   $objreg->remove_from_store ($store, \@drop);
 
   printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n",
           $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
 }
+
+=head2 process_file
+
+TBD
+returns list of elements that where updated
+
+=cut
 
 sub process_file
 {
