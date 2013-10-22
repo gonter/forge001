@@ -47,7 +47,7 @@ sub new
 
   my $cfg= $obj->get_project ();
   return undef unless (defined ($cfg));
-  $obj->{cfg}= $cfg;
+  $obj->{'cfg'}= $cfg;
 
   $obj;
 }
@@ -92,6 +92,7 @@ sub get_project
     $plugins_loaded{$be}= 1;
   }
 
+  my $seq;
   if ($be eq 'TA::Hasher')
   {
     # initialize hasher
@@ -99,20 +100,34 @@ sub get_project
     $ta->{'name'}= 'file';
     $ta->{'pfx'}= $obj->{'proj_cat'}= my $proj_cat= join ('/', $proj_cfg_dir, 'cat');
     $obj->{'hasher'}= my $hasher= new TA::Hasher (%$ta);
+
+    # get sequence number
+    $obj->{'seq_file'}= my $fnm_seq= join ('/', $proj_cfg_dir, 'sequence.json');
+    $obj->{'seq'}= $seq= TA::Util::slurp_file ($fnm_seq, 'json');
+
   }
   elsif ($be eq 'MongoDB')
   {
-    $obj->connect_MongoDB ($proj_cfg);
+    if ($obj->connect_MongoDB ($proj_cfg))
+    {
+      my $x= $obj->{'_maint'}->find_one ( { 'an' => 'seq' } );
+      $obj->{'seq'}= $seq= $x->{'av'};
+    }
   }
 
-  # get sequence number
-  $obj->{'seq_file'}= my $fnm_seq= join ('/', $proj_cfg_dir, 'sequence.json');
-  $obj->{'seq'}= my $seq= TA::Util::slurp_file ($fnm_seq, 'json');
-  # print "seq: ", main::Dumper ($seq);
+  print "seq: [$seq] ", main::Dumper ($seq);
   unless (defined ($seq))
   {
     $obj->{'seq'}= $seq= { 'seq' => 0, 'upd' => time () };
-    $obj->_save_seq ();
+print "new seq: ", main::Dumper ($seq);
+#   if ($be eq 'MongoDB')
+#   {
+#     $obj->{'_maint'}->insert ( { 'an' => 'seq', 'av' => $seq } );
+#   }
+#   else
+#   {
+      $obj->_save_seq ();
+#   }
   }
 
   $proj_cfg;
@@ -161,7 +176,7 @@ sub lookup
   }
   elsif ($be eq 'MongoDB')
   {
-    $reg= $obj->{'_col'}->find_one ( $search );
+    $reg= $obj->{'_cat'}->find_one ( $search );
   }
   # print "reg: ", main::Dumper ($reg);
  
@@ -178,9 +193,9 @@ sub save
   # print "save [$new_reg] be=[$be]\n";
   # print main::Dumper ($new_reg);
 
+  my $id_str= $search->{my $key_attr= $obj->{'key'}};
   if ($be eq 'TA::Hasher')
   {
-    my $id_str= $search->{$obj->{'key'}};
     my ($all_reg, $fnm)= $obj->ta_retrieve ($id_str, 1);
 
 =begin comment
@@ -207,7 +222,7 @@ sub save
     }
     else
     {
-      $all_reg= { 'key' => $id_str, 'entries' => [ $new_reg ] }
+      $all_reg= { 'key' => $id_str, 'type' => $key_attr, 'entries' => [ $new_reg ] }
     }
 
     my $j= encode_json ($all_reg);
@@ -217,9 +232,36 @@ sub save
   }
   elsif ($be eq 'MongoDB')
   {
-    print "new_reg: ", main::Dumper ($new_reg);
-    $obj->{'_col'}->insert ($new_reg);
+    unless (exists ($new_reg->{'seq'}))
+    { # no sequence number known, check if there is one already for that key
+      $new_reg->{'seq'}= $obj->mdb_get_seq_for_key ($id_str);
+    }
+
+    unless (exists ($new_reg->{'key'}))
+    {
+      $new_reg->{'key'}= $id_str;
+      $new_reg->{'type'}= $key_attr;
+    }
+
+    # print "new_reg: ", main::Dumper ($new_reg);
+    $obj->{'_cat'}->update ($search, $new_reg, { 'upsert' => 1 } );
   }
+}
+
+sub mdb_get_seq_for_key
+{
+  my $obj= shift;
+  my $id_str= shift;
+
+  my $s= { 'key' => $id_str };
+  my $k= $obj->{'_keys'};
+  my $kv= $k->find_one ($s);
+
+  return $kv->{'seq'} if (defined ($kv));
+
+  $s->{'seq'}= my $seq= $obj->next_seq ();
+  $k->insert ($s);
+  $seq;
 }
 
 =head1 TOC: Table of Contents
@@ -295,8 +337,11 @@ sub load_single_toc
   my $store= shift;
   my $cache= shift;
 
-  my $c= $reg->{'proj_cat'};
-  return undef unless (defined ($c)); # not initialized?
+print "load_single_toc: store=[$store]\n";
+  if ((my $be= $reg->{'cfg'}->{'backend'}) eq 'TA::Hasher')
+  {
+    my $c= $reg->{'proj_cat'};
+    return undef unless (defined ($c)); # not initialized?
 
     my $f= $c . '/' . $store . '.toc.json';
     my $t= TA::Util::slurp_file ($f, 'json');
@@ -304,8 +349,20 @@ sub load_single_toc
     {
       $reg->{'tocs'}->{$store}= $t;
     }
-
-  $t;
+    return $t;
+  }
+  elsif ($be eq 'MongoDB')
+  {
+    my $cursor= $reg->{'_cat'}->find ( { 'store' => $store } );
+    print "cursor=[$cursor]\n";
+    my @all= $cursor->all ();
+    return \@all;
+  }
+  else
+  {
+    print "ATTN: load_single_toc not defined for backend '$be'\n";
+  }
+  return undef;
 }
 
 sub load_multi_tocs
@@ -358,6 +415,12 @@ sub verify_toc
   my $hdr= shift || [];
   my $reset= shift;
 
+  unless ((my $be= $reg->{'cfg'}->{'backend'}) eq 'TA::Hasher')
+  {
+    print "ATTN: verify_toc not defined for backend '$be'\n";
+    return undef;
+  }
+
   my @hdr1= qw(key seq found store_count);
   # my @hdr1= qw(seq store_count);
 
@@ -366,6 +429,11 @@ sub verify_toc
 
   #### my @extra_fields= (exists ($reg->{'toc_extra_fields'})) ? $reg->{'toc_extra_fields'} : ();
   my $c= $reg->{'proj_cat'};
+  unless (defined ($c))
+  {
+    print "ERROR: verify_toc no proj_cat directory defined\n";
+    return undef;
+  }
 
   # get key to sequence mapping
   my $fnm_key_seq= $reg->{'proj_cfg_dir'} . '/KEY-SEQ.json';
@@ -413,9 +481,8 @@ sub verify_toc
     $items{$_}= [ $x ];
   }
 
-  my $d= $reg->{'proj_cat'};
-  print "proj_cat=[$d]\n";
-  find (\&item_files, $d);
+  print __LINE__, " proj_cat=[$c]\n";
+  find (\&item_files, $c);
 
   my $key_seq_updated= 0;
   # print "items: ", main::Dumper (\%items);
@@ -541,7 +608,13 @@ sub remove_from_store
   }
   elsif ($be eq 'MongoDB')
   {
-    die ("implement MongoDB remove");
+    foreach my $item (@$drop_list)
+    {
+      my ($id_str, $path)= @$item;
+      $objreg->{'_cat'}->remove ( { 'key' => $id_str, 'type' => $objreg->{'key'},
+         'store' => $store, 'path' => $path } );
+    }
+    return {}; # TODO: TA::Hasher variant returns dropped items
   }
 }
 
@@ -595,10 +668,19 @@ sub _save_seq
 {
   my $reg= shift;
 
-  my $f= $reg->{'seq_file'};
-  open (F_SEQ, '>:utf8', $f) or die "cant write sequence to '$f'";
-  print F_SEQ encode_json ($reg->{'seq'}), "\n";
-  close (F_SEQ);
+  my $be= $reg->{'cfg'}->{'backend'};
+
+  if ($be eq 'TA::Hasher')
+  {
+    my $f= $reg->{'seq_file'};
+    open (F_SEQ, '>:utf8', $f) or die "cant write sequence to '$f'";
+    print F_SEQ encode_json ($reg->{'seq'}), "\n";
+    close (F_SEQ);
+  }
+  else
+  {
+    $reg->{'_maint'}->update ( { 'an' => 'seq' }, { 'an' => 'seq', 'av' => $reg->{'seq'} }, { 'upsert' => 1 } );
+  }
 }
 
 sub next_seq
@@ -632,22 +714,29 @@ sub connect_MongoDB
   my $cmm= $cfg->{'MongoDB'};
   print "cmm: ", main::Dumper ($cmm);
 
-  my $col;
+  my ($col0, $col1, $col2);
   eval
   {
     my $connection= MongoDB::Connection->new(host => $cmm->{'host'});
     $connection->authenticate($cmm->{'db'}, $cmm->{'user'}, $cmm->{'pass'});
     my $db= $connection->get_database($cmm->{'db'});
-    $col= $db->get_collection($cmm->{'collection'});
-    print "col: [$col]\n";
+
+    $col0= $db->get_collection($cmm->{'maint'});
+    $col1= $db->get_collection($cmm->{'catalog'});
+    $col2= $db->get_collection($cmm->{'keys'});
+    print "col: [$col0] [$col1] [$col2]\n";
   };
   if ($@)
   {
-    print "ATTN: can't connect to MongoDB ", (join ('/', map { $cmm->{$_} } qw(host user collection))), "\n";
+    print "ATTN: can't connect to MongoDB ", (join ('/', map { $cmm->{$_} } qw(host user maint))), "\n";
     return undef;
   }
 
-  return $obj->{'_col'}= $col;
+  $obj->{'_maint'}= $col0;
+  $obj->{'_cat'}= $col1;
+  $obj->{'_keys'}= $col2;
+
+  1;
 }
 
 =head2 ($data, $fnm)= $objreg->ta_retrieve ($key, $create)
