@@ -181,6 +181,7 @@ sub refresh_internal
   my $cnt_dropped= 0;
 
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
+  print "toc verfified\n";
   my $toc= $objreg->load_single_toc ($store);
   # print "toc: ", Dumper ($toc);
 
@@ -276,11 +277,12 @@ print __LINE__, " integrate_md5_sums\n";
       push (@drop, [$k, $p]) if ($x1->{$p} == 0);
     }
   }
-  # print __LINE__, " drop: ", Dumper (\@drop);
+  print __LINE__, " drop: ", Dumper (\@drop);
 
   $objreg->remove_from_store ($store, \@drop);
 
-  printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n", $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
+  printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n",
+          $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
 }
 
 sub process_file
