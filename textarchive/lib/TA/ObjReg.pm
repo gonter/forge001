@@ -60,13 +60,25 @@ sub new
 
 =cut
 
+sub _get_project_paths
+{
+  my $proj_name= shift;
+
+  my $proj_cfg_dir= join ('/', $ENV{'TABASE'}, 'projects', $proj_name);
+  my $proj_cfg_fnm= join ('/', $proj_cfg_dir, 'config.json');
+
+  return ($proj_cfg_dir, $proj_cfg_fnm);
+}
+
 sub get_project
 {
   my $obj= shift;
 
   my $proj_name= $obj->{'project'};
-  $obj->{'proj_cfg_dir'}= my $proj_cfg_dir= join ('/', $ENV{'TABASE'}, 'projects', $proj_name);
-  $obj->{'proj_cfg_fnm'}= my $proj_cfg_fnm= join ('/', $proj_cfg_dir, 'config.json');
+  my ($proj_cfg_dir, $proj_cfg_fnm)= _get_project_paths ($proj_name);
+
+  $obj->{'proj_cfg_dir'}= $proj_cfg_dir;
+  $obj->{'proj_cfg_fnm'}= $proj_cfg_fnm;
 
   my $proj_cfg;
   unless ($proj_cfg= TA::Util::slurp_file ($proj_cfg_fnm, 'json'))
@@ -822,7 +834,7 @@ sub ta_match
   my $all_reg= shift;
   my $search= shift;
 
-  my @k= keys $search;
+  my @k= keys %$search;
   my @e= @{$all_reg->{'entries'}};
   REG: for (my $i= 0; $i <= $#e; $i++)
   {
@@ -848,7 +860,7 @@ sub ta_filter
   my $all_reg= shift;
   my $search= shift;
 
-  my @k= keys $search;
+  my @k= keys %$search;
   my @e= @{$all_reg->{'entries'}};
   my @m= ();
   my @n= ();

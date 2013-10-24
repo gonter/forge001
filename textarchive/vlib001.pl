@@ -86,6 +86,14 @@ unless (defined ($project))
 }
 # &usage ('no store specified') unless (defined ($store));
 
+if ($op_mode eq 'edit')
+{
+  my ($proj_cfg_dir, $proj_cfg_fnm)= TA::ObjReg::_get_project_paths($project);
+  system ("\$EDITOR '$proj_cfg_fnm'");
+  # print "store_cfg: ", Dumper ($store_cfg);
+  exit;
+}
+
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => 'md5');
 &usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
@@ -111,13 +119,6 @@ if ($op_mode eq 'refresh')
 elsif ($op_mode eq 'verify')
 {
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
-}
-elsif ($op_mode eq 'edit')
-{
-  print "objreg: ", Dumper ($objreg);
-  my $proj_cfg_fnm= $objreg->{'proj_cfg_fnm'};
-  system ("\$EDITOR '$proj_cfg_fnm'");
-  # print "store_cfg: ", Dumper ($store_cfg);
 }
 elsif ($op_mode eq 'lookup')
 {
@@ -404,4 +405,12 @@ __END__
       in parallel, however, then it might be a good idea to store
       file metadata in one place and let other hashes point to that
       place.
+
+=head1 BUGS
+
+option --edit fails when when config is broken:
+  $ vlib001.pl -p ph001 --edit
+  debug level: 0 , or } expected while parsing object/hash, at character
+  offset 74 (before ""backend": "MongoDB"...") at /home/gg/perl/TA/Util.pm
+  line 38.
 
