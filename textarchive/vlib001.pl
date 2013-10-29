@@ -406,11 +406,3 @@ __END__
       file metadata in one place and let other hashes point to that
       place.
 
-=head1 BUGS
-
-option --edit fails when when config is broken:
-  $ vlib001.pl -p ph001 --edit
-  debug level: 0 , or } expected while parsing object/hash, at character
-  offset 74 (before ""backend": "MongoDB"...") at /home/gg/perl/TA/Util.pm
-  line 38.
-
