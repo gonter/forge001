@@ -724,7 +724,7 @@ sub connect_MongoDB
   my $cfg= shift;
 
   my $cmm= $cfg->{'MongoDB'};
-  print "cmm: ", main::Dumper ($cmm);
+  # print "cmm: ", main::Dumper ($cmm);
 
   my ($col0, $col1, $col2);
   eval
