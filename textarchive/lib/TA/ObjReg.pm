@@ -726,12 +726,12 @@ sub connect_MongoDB
   my $cmm= $cfg->{'MongoDB'};
   # print "cmm: ", main::Dumper ($cmm);
 
-  my ($col0, $col1, $col2);
+  my ($db, $col0, $col1, $col2);
   eval
   {
     my $connection= MongoDB::Connection->new(host => $cmm->{'host'});
     $connection->authenticate($cmm->{'db'}, $cmm->{'user'}, $cmm->{'pass'});
-    my $db= $connection->get_database($cmm->{'db'});
+    $db= $connection->get_database($cmm->{'db'});
 
     $col0= $db->get_collection($cmm->{'maint'});
     $col1= $db->get_collection($cmm->{'catalog'});
@@ -744,6 +744,7 @@ sub connect_MongoDB
     return undef;
   }
 
+  $obj->{'_mongo'}= $db;
   $obj->{'_maint'}= $col0;
   $obj->{'_cat'}= $col1;
   $obj->{'_keys'}= $col2;
