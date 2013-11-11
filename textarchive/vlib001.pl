@@ -58,8 +58,7 @@ while (my $arg= shift (@ARGV))
        if ($arg eq '--project')  { $project= shift (@ARGV); }
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
-    elsif ($arg eq '--maint') { $op_mode= 'maint'; }
-    elsif ($arg =~ /^--(refresh|verify|lookup|edit)$/) { $op_mode= $1; }
+    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
   {
@@ -139,6 +138,11 @@ For MongoDB backend: synchronize information about stores with maint collection
 =end comment
 =cut
 
+}
+elsif ($op_mode eq 'next-seq')
+{
+  my $x= $objreg->next_seq ();
+  print "x: ", Dumper ($x);
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
