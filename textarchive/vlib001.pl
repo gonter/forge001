@@ -11,16 +11,30 @@
   options:
   * -p <project-name>
   * -s <store-name>
-  * --verify   ... verify/create TOC structures
+  * --verify   ... verify/create TOC structures (not for MongoDB)
   * --fileinfo ... refresh file info
   * --lookup   ... lookup for hashes given as parameters
   * -D ... increase debug level
 
 =head1 DESCRIPTION
 
-Updates the _catalog file using md5cat scripts and registers the files in
-the project's object registry.  The environment variable TABASE must point
-to the directory where the object registry's configuration is stored.
+Updates a file catalog using md5cat library methods and registers the
+files in the project's object registry.  The environment variable TABASE
+must point to the directory where the object registry's configuration
+is stored.
+
+=head1 BACKENDS
+
+Currently two backends are available and mostly supported.  The older
+filesystem based TA::Hasher was more or less replaced by MongoDB.
+
+=head2 MongoDB
+
+The object registry is stored in a MongoDB.
+
+=head2 TA::Hasher
+
+Filesystem based storage backend for object information in JSON format
 
 =cut
 
