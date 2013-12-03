@@ -14,6 +14,7 @@
   * --verify   ... verify/create TOC structures (not for MongoDB)
   * --fileinfo ... refresh file info
   * --lookup   ... lookup for hashes given as parameters
+  * --limit <n> ... check up <n> files
   * -D ... increase debug level
 
 =head1 DESCRIPTION
@@ -55,6 +56,7 @@ my $refresh_fileinfo= 0;
 my $DEBUG= 0;
 my $STOP= 0;
 my $op_mode= 'refresh';
+my $limit= undef;
 
 my @hdr= qw(md5 path mtime fs_size ino);
 
@@ -72,6 +74,7 @@ while (my $arg= shift (@ARGV))
        if ($arg eq '--project')  { $project= shift (@ARGV); }
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
+    elsif ($arg eq '--limit')    { $limit= shift (@ARGV); }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
@@ -212,7 +215,7 @@ sub refresh_internal
   my $cnt_dropped= 0;
 
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
-  print "toc verfified\n";
+  print "TOC verified\n";
   my $toc= $objreg->load_single_toc ($store);
   # print "toc: ", Dumper ($toc);
 
@@ -271,7 +274,7 @@ sub refresh_internal
   }
 
 print __LINE__, " check_new_files\n";
-  my $new_files= $md5cat->check_new_files ();
+  my $new_files= $md5cat->check_new_files ($limit);
   # print "new_files: ", Dumper ($new_files);
 print __LINE__, " integrate_md5_sums\n";
   $md5cat->integrate_md5_sums ($new_files);
