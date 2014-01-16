@@ -10,6 +10,8 @@ package TA::ObjReg;
 
 =head1 DESCRIPTION
 
+=head1 SYNOPSIS
+
 =cut
 
 use strict;
@@ -52,7 +54,7 @@ sub new
   $obj;
 }
 
-=head1 project level methods
+=head1 PROJECT LEVEL METHODS
 
 =head2 $reg->get_project()
 
@@ -127,7 +129,7 @@ sub get_project
     }
   }
 
-  print "seq: [$seq] ", main::Dumper ($seq);
+  # print "seq: [$seq] ", main::Dumper ($seq);
   unless (defined ($seq))
   {
     $obj->{'seq'}= $seq= { 'seq' => 0, 'upd' => time () };
@@ -366,7 +368,7 @@ print "load_single_toc: store=[$store]\n";
   elsif ($be eq 'MongoDB')
   {
     my $cursor= $reg->{'_cat'}->find ( { 'store' => $store } );
-    print "cursor=[$cursor]\n";
+    # print "cursor=[$cursor]\n";
     my @all= $cursor->all ();
     return \@all;
   }
@@ -736,8 +738,9 @@ sub connect_MongoDB
     $col0= $db->get_collection($cmm->{'maint'});
     $col1= $db->get_collection($cmm->{'catalog'});
     $col2= $db->get_collection($cmm->{'keys'});
-    print "col: [$col0] [$col1] [$col2]\n";
+    # print "col: [$col0] [$col1] [$col2]\n";
   };
+
   if ($@)
   {
     print "ATTN: can't connect to MongoDB ", (join ('/', map { $cmm->{$_} } qw(host user maint))), "\n";

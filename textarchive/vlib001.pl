@@ -57,6 +57,8 @@ my $DEBUG= 0;
 my $STOP= 0;
 my $op_mode= 'refresh';
 my $limit= undef;
+my $cat_file= '_catalog';
+my $ino_file= '_catalog.inodes';
 
 my @hdr= qw(md5 path mtime fs_size ino);
 
@@ -75,7 +77,7 @@ while (my $arg= shift (@ARGV))
     elsif ($arg eq '--store')    { $store= shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
     elsif ($arg eq '--limit')    { $limit= shift (@ARGV); }
-    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq)$/) { $op_mode= $1; }
+    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
   }
   elsif ($arg =~ /^-/)
   {
@@ -150,11 +152,28 @@ elsif ($op_mode eq 'maint')
 
 =begin comment
 
-For MongoDB backend: synchronize information about stores with maint collection
+TODO: For MongoDB backend: synchronize information about stores with maint collection
 
 =end comment
 =cut
 
+}
+elsif ($op_mode eq 'get-cat')
+{
+  my $catalog= $objreg->{'cfg'}->{'catalog'};
+  &usage ('no catalog found in config') unless (defined ($catalog));
+
+  my $stores_p= $objreg->{'cfg'}->{'stores'};
+  my $store_cfg= $stores_p->{$store};
+  unless (defined ($store_cfg))
+  {
+    print "no store config found for '$store', check these: ", Dumper ($stores_p);
+    exit (-2);
+  }
+  print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
+
+     if ($catalog->{'format'} eq 'md5cat')   { print "hmm... you should have a _catalog already!\n"; }
+  elsif ($catalog->{'format'} eq 'internal') { get_cat_internal ($objreg, $store); }
 }
 elsif ($op_mode eq 'next-seq')
 {
@@ -394,6 +413,56 @@ sub process_file
   }
 
   (wantarray) ? @upd : \@upd;
+}
+
+sub get_cat_internal
+{
+  my $objreg= shift;
+  my $store= shift;
+
+  my $toc= $objreg->load_single_toc ($store);
+  # print "toc: ", Dumper ($toc);
+
+  unless (@$toc)
+  {
+    print "nothing found; exiting\n";
+    return undef;
+  }
+
+  my $count= 0;
+  unless (open (CAT, '>:utf8', $cat_file))
+  {
+    print "can not write to '$cat_file'\n";
+    return undef;
+  }
+  print "writing new catalog '$cat_file'\n";
+
+  my %inodes;
+  foreach my $t (@$toc)
+  {
+    my ($md5, $fs_size, $path, $ino)= map { $t->{$_} } qw(md5 fs_size path ino);
+    printf CAT ("%s file %9ld %s\n", $md5, $fs_size, $path);
+    # print "t: ", Dumper ($t);
+    push (@{$inodes{$ino}}, $path);
+    $count++;
+  }
+  close (CAT);
+
+  if (open (INO, '>:utf8', $ino_file))
+  {
+    print "writing new catalog '$ino_file'\n";
+    foreach my $ino (sort { $a <=> $b } keys %inodes)
+    {
+      print INO join ('|', $ino, @{$inodes{$ino}}), "\n";
+    }
+    close (INO);
+  }
+  else
+  {
+    print "can not write to '$ino_file'\n";
+  }
+
+  $count;
 }
 
 # callback function for TA::ObjReg::verify

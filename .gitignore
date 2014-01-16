@@ -1,2 +1,6 @@
 @*
 tmp
+_catalog
+_catalog.inodes
+_catalog.bup
+_catalog.inodes.bup
