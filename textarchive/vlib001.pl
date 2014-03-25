@@ -6,16 +6,20 @@
 
 =head1 USAGE
 
-  vlib001.pl -p project-name [-s store-name] [paraemters]*
+  vlib001.pl -p project-name [-s store-name] [parameters]*
 
   options:
   * -p <project-name>
   * -s <store-name>
+  * --project <project-name>
+  * --store <store-name>
   * --verify   ... verify/create TOC structures (not for MongoDB)
   * --fileinfo ... refresh file info
   * --lookup   ... lookup for hashes given as parameters
   * --limit <n> ... check up <n> files
+  * --noinode   ... ignore the inode
   * -D ... increase debug level
+  * -X ... stop after setup (useful as option -DX)
 
 =head1 DESCRIPTION
 
@@ -59,6 +63,7 @@ my $op_mode= 'refresh';
 my $limit= undef;
 my $cat_file= '_catalog';
 my $ino_file= '_catalog.inodes';
+my $check_inode= 1;
 
 my @hdr= qw(md5 path mtime fs_size ino);
 
@@ -74,20 +79,24 @@ while (my $arg= shift (@ARGV))
   elsif ($arg =~ /^--/)
   {
        if ($arg eq '--project')  { $project= shift (@ARGV); }
-    elsif ($arg eq '--store')    { $store= shift (@ARGV); }
+    elsif ($arg eq '--store')    { $store=   shift (@ARGV); }
+    elsif ($arg eq '--limit')    { $limit=   shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
-    elsif ($arg eq '--limit')    { $limit= shift (@ARGV); }
+    elsif ($arg eq '--noinode')  { $check_inode= 0; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
+    else { &usage ("unknown option '$arg'"); }
   }
   elsif ($arg =~ /^-/)
   {
     my @a= split ('|', $arg);
+    shift (@a);
     foreach my $a (@a)
     {
          if ($a eq 'p') { $project= shift (@ARGV); }
-      elsif ($a eq 's') { $store= shift (@ARGV); }
+      elsif ($a eq 's') { $store=   shift (@ARGV); }
       elsif ($a eq 'D') { $DEBUG++; }
       elsif ($a eq 'X') { $STOP= 1; }
+      else { &usage ("unknown option '-$a'"); }
     }
   }
   else { push (@PAR, $arg); }
@@ -130,7 +139,18 @@ if ($op_mode eq 'refresh')
     print "no store config found for '$store', check these: ", Dumper ($stores_p);
     exit (-2);
   }
+
   print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
+  if (exists ($store_cfg->{'inodes'}))
+  {
+    my $i= $store_cfg->{'inodes'};
+       if ($i eq 'ignore') { $check_inode= 0; }
+    elsif ($i eq 'check')  { $check_inode= 1; }
+    else
+    {
+      print "WARNING: store-parameter 'inodes' has unknown value '$i'\n";
+    }
+  }
 
      if ($catalog->{'format'} eq 'md5cat')   { refresh_md5cat   ($objreg, $store); }
   elsif ($catalog->{'format'} eq 'internal') { refresh_internal ($objreg, $store); }
@@ -188,8 +208,8 @@ exit (0);
 sub usage
 {
   my $msg= shift;
-  print $msg, "\n";
-  system ("perldoc $0");
+  print $msg, "\n" if ($msg);
+  system ('perldoc', $0);
   exit -1;
 }
 
@@ -243,6 +263,9 @@ sub refresh_internal
   # print "md5cat: ", Dumper ($md5cat);
   print "flist processed\n";
 
+  my @check_list= qw(mtime size);
+  push (@check_list, 'ino') if ($check_inode);
+
   # compare TOC and reference filelist
   my $fl= $md5cat->{'FLIST'};
   my %key= ();
@@ -264,7 +287,7 @@ sub refresh_internal
       $cnt_processed++;
       my $f= $fl->{$p};
       my $matches= 1;
-      AN: foreach my $an (qw(mtime size ino))
+      AN: foreach my $an (@check_list)
       {
         unless ($f->{$an} eq $x->{$an})
         {
@@ -361,8 +384,9 @@ sub process_file
       # 'key' => $md5, 'key_type' => 'md5',
       'store' => $store,
       'c_size' => $size, 'path' => $path, 'md5' => $md5,
-      'mtime' => $st[9], 'fs_size' => $st[7], 'ino' => $st[1]
+      'mtime' => $st[9], 'fs_size' => $st[7]
     };
+    $xdata->{'ino'}= $st[1] if ($check_inode);
 
     my $search= { 'md5' => $md5, 'store' => $store, 'path' => $path };
     my $reg= $objreg->lookup ($search);
@@ -443,23 +467,26 @@ sub get_cat_internal
     my ($md5, $fs_size, $path, $ino)= map { $t->{$_} } qw(md5 fs_size path ino);
     printf CAT ("%s file %9ld %s\n", $md5, $fs_size, $path);
     # print "t: ", Dumper ($t);
-    push (@{$inodes{$ino}}, $path);
+    push (@{$inodes{$ino}}, $path) if ($check_inode);
     $count++;
   }
   close (CAT);
 
-  if (open (INO, '>:utf8', $ino_file))
+  if ($check_inode)
   {
-    print "writing new catalog '$ino_file'\n";
-    foreach my $ino (sort { $a <=> $b } keys %inodes)
+    if (open (INO, '>:utf8', $ino_file))
     {
-      print INO join ('|', $ino, @{$inodes{$ino}}), "\n";
+      print "writing new catalog '$ino_file'\n";
+      foreach my $ino (sort { $a <=> $b } keys %inodes)
+      {
+        print INO join ('|', $ino, @{$inodes{$ino}}), "\n";
+      }
+      close (INO);
     }
-    close (INO);
-  }
-  else
-  {
-    print "can not write to '$ino_file'\n";
+    else
+    {
+      print "can not write to '$ino_file'\n";
+    }
   }
 
   $count;
@@ -477,7 +504,9 @@ sub verify_toc_item
   # my @paths= keys %{$jj->{'path'}};
   # $ster->{'path_count'}= scalar @paths;  ... we don't see that this way anymore
 
-  foreach my $k (qw(md5 path mtime fs_size ino))
+  my @check_list= qw(md5 path mtime fs_size);
+  push (@check_list, 'ino') if ($check_inode);
+  foreach my $k (@check_list)
   {
     $ster->{$k}= $jj->{$k};
   }
@@ -493,6 +522,9 @@ __END__
     locate all the stores on a given machine, so there should be an option
     that updates everything.
   * specifing the store should be optional.
+  * environment variable TABASE:
+    * add pod section
+    * allow command line option to specifiy alternative base directory name
 
 =head2 misc
 
