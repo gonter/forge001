@@ -540,3 +540,8 @@ __END__
       file metadata in one place and let other hashes point to that
       place.
 
+=head2 embedded databases?
+
+  * maybe embedded MongoDB would be a nice alternative to the full
+    blown service base MongoDB backend
+
