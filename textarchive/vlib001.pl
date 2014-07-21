@@ -524,7 +524,7 @@ __END__
   * specifing the store should be optional.
   * environment variable TABASE:
     * add pod section
-    * allow command line option to specifiy alternative base directory name
+    * allow command line option to specify alternative base directory name
 
 =head2 misc
 
@@ -533,17 +533,17 @@ __END__
   * also, checking the VCS status (if not committing updates)
     might be useful.
   * other hashing algorithms:
-    * currently we use md5 for hashing, however, this could should
+    * currently we use md5 for hashing, however, this code should
       be fairly simple to adopt for sha1, sha256 or something else.
     * possibly, it makes sense to allow several hashing algorithms
       in parallel, however, then it might be a good idea to store
       file metadata in one place and let other hashes point to that
       place.
-  * make it available for the "reposync" project
+  * make this code available for the "reposync" project
 
 =head2 embedded databases?
 
   * maybe embedded MongoDB would be a nice alternative to the full
-    blown service base MongoDB backend
+    blown TCP/IP connected MongoDB backend
 
 
