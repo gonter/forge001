@@ -5,7 +5,7 @@ use strict;
 
 use JSON;
 
-=head2 _file_slurp ($filename, $format)
+=head2 slurp_file ($filename, $format)
 
 read contents of that file and 
 

@@ -16,7 +16,7 @@ package TA::ObjReg;
 
 use strict;
 
-use JSON;
+# use JSON; not used here??
 use File::Find;
 
 use TA::Util;
