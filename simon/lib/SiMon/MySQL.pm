@@ -1,9 +1,11 @@
 #!/usr/bin/perl
 
+package SiMon::MySQL;
+
 use strict;
 
-my $do_zip= 1;
-my $do_bup= 1;
+my $do_zip= 1; sub do_zip { $do_zip= shift; }
+my $do_bup= 0; sub do_bup { $do_bup= shift; }
 
 sub new
 {
@@ -32,12 +34,12 @@ sub mk_mysql_dump
   my $fnm= shift;
   my @rest= @_;
 
-  my ($user, $pass, $db_name)= map { $self->{$_} or die } qw(user pass db);
+  my ($host, $user, $pass, $db_name)= map { $self->{$_} or die("missing $_") } qw(host user pass db);
 
   $fnm= sprintf ('%s_%s.dump', $db_name, ts_ISO()) unless ($fnm);
 
   print "saving to fnm=[$fnm]\n";
-  my @cmd1= ('/usr/bin/mysqldump', '-u', $user);
+  my @cmd1= ('/usr/bin/mysqldump', '-h', $host, '-u', $user);
   push (@cmd1, "--password=$pass");
   # push (@cmd1, '-p', $pass); # does not work that way!
   my $idx_p= $#cmd1;
