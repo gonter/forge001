@@ -622,10 +622,12 @@ sub remove_from_store
   }
   elsif ($be eq 'MongoDB')
   {
+    my $_cat= $objreg->{'_cat'};
     foreach my $item (@$drop_list)
     {
       my ($id_str, $path)= @$item;
-      $objreg->{'_cat'}->remove ( { 'key' => $id_str, 'type' => $objreg->{'key'},
+      print "drop: key=[$id_str] store=[$store] path=[$path]\n";
+      $_cat->remove ( { 'key' => $id_str, 'type' => $objreg->{'key'},
          'store' => $store, 'path' => $path } );
     }
     return {}; # TODO: TA::Hasher variant returns dropped items
