@@ -18,6 +18,7 @@
   * --lookup   ... lookup for hashes given as parameters
   * --limit <n> ... check up <n> files
   * --noinode   ... ignore the inode
+  * --edit      ... edit configuration
   * -D ... increase debug level
   * -X ... stop after setup (useful as option -DX)
 
@@ -64,6 +65,7 @@ my $limit= undef;
 my $cat_file= '_catalog';
 my $ino_file= '_catalog.inodes';
 my $check_inode= 1;
+my $EDITOR= $ENV{'EDITOR'} || '/bin/vi';
 
 my @hdr= qw(md5 path mtime fs_size ino);
 
@@ -117,7 +119,7 @@ unless (defined ($project))
 if ($op_mode eq 'edit')
 {
   my ($proj_cfg_dir, $proj_cfg_fnm)= TA::ObjReg::_get_project_paths($project);
-  system ("\$EDITOR '$proj_cfg_fnm'");
+  system ($EDITOR, $proj_cfg_fnm);
   # print "store_cfg: ", Dumper ($store_cfg);
   exit;
 }
