@@ -13,6 +13,7 @@
   * -s <store-name>
   * --project <project-name>
   * --store <store-name>
+  * --subdir <directory>
   * --verify   ... verify/create TOC structures (not for MongoDB)
   * --fileinfo ... refresh file info
   * --lookup   ... lookup for hashes given as parameters
@@ -75,6 +76,8 @@ my $Dir_Pattern= '.';
 my $DEFAULT_file_list= "find $Dir_Pattern -xdev -type f -print|";
 # --- >8 ---
 
+my @subdirs= ();
+
 while (my $arg= shift (@ARGV))
 {
      if ($arg eq '--') { push (@PAR, @ARGV); @ARGV= (); }
@@ -85,6 +88,7 @@ while (my $arg= shift (@ARGV))
     elsif ($arg eq '--limit')    { $limit=   shift (@ARGV); }
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
     elsif ($arg eq '--noinode')  { $check_inode= 0; }
+    elsif ($arg eq '--subdir')   { push (@subdirs, shift (@ARGV)); }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
     else { &usage ("unknown option '$arg'"); }
   }
@@ -261,7 +265,20 @@ sub refresh_internal
   # print "toc: ", Dumper ($toc);
 
   my $md5cat= new md5cat ();
-  $md5cat->read_flist ($DEFAULT_file_list);
+
+  if (@subdirs)
+  {
+    foreach my $subdir (@subdirs)
+    {
+      my $subdir_file_list= "find '$subdir' -xdev -type f -print|";
+      $md5cat->read_flist ($subdir_file_list);
+    }
+  }
+  else
+  {
+    $md5cat->read_flist ($DEFAULT_file_list);
+  }
+
   # print "md5cat: ", Dumper ($md5cat);
   print "flist processed\n";
 
@@ -347,17 +364,36 @@ print __LINE__, " integrate_md5_sums\n";
   # print __LINE__, " key: ", Dumper (\%key);
 
   my @drop= ();
-  foreach my $k (keys %key)
+  if (@subdirs)
   {
-    my $x1= $key{$k};
-    foreach my $p (keys %$x1)
-    {
-      push (@drop, [$k, $p]) if ($x1->{$p} == 0);
-    }
-  }
-  print __LINE__, " drop: (", scalar @drop, ") ", Dumper (\@drop);
 
-  $objreg->remove_from_store ($store, \@drop);
+=begin comment
+
+NOTE: we only inspected a subdirectory, but this inspects everything
+and would remove items that were not even inspected
+
+TODO: only drop the thing when it is in the right subdirectory!
+
+=end comment
+=cut
+
+    print "NOTE: no check for removable items performed!\n";
+
+  }
+  else
+  {
+    foreach my $k (keys %key)
+    {
+      my $x1= $key{$k};
+      foreach my $p (keys %$x1)
+      {
+        push (@drop, [$k, $p]) if ($x1->{$p} == 0);
+      }
+    }
+    print __LINE__, " drop: (", scalar @drop, ") ", Dumper (\@drop);
+
+    $objreg->remove_from_store ($store, \@drop);
+  }
 
   printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n",
           $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
