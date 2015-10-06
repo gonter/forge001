@@ -20,6 +20,7 @@
   * --limit <n> ... check up <n> files
   * --noinode   ... ignore the inode
   * --edit      ... edit configuration
+  * --cd        ... change directory to store's base
   * -D ... increase debug level
   * -X ... stop after setup (useful as option -DX)
 
@@ -66,6 +67,7 @@ my $limit= undef;
 my $cat_file= '_catalog';
 my $ino_file= '_catalog.inodes';
 my $check_inode= 1;
+my $cd_mode= 0;
 my $EDITOR= $ENV{'EDITOR'} || '/bin/vi';
 
 my @hdr= qw(md5 path mtime fs_size ino);
@@ -89,6 +91,7 @@ while (my $arg= shift (@ARGV))
     elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
     elsif ($arg eq '--noinode')  { $check_inode= 0; }
     elsif ($arg eq '--subdir')   { push (@subdirs, shift (@ARGV)); }
+    elsif ($arg eq '--cd')       { $cd_mode= 1; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
     else { &usage ("unknown option '$arg'"); }
   }
@@ -146,7 +149,21 @@ if ($op_mode eq 'refresh')
     exit (-2);
   }
 
+# ZZZ
+$DEBUG= 1;
   print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
+  
+  if ($cd_mode == 1)
+  {
+    my $path= $store_cfg->{'path'} or event_die ("no path defined");
+    print "path=[$path]\n";
+    my $res= chdir ($path) or event_die ("can not change to $path");;
+    print "res=[$res]\n";
+    my $pwd= `pwd`; chop($pwd);
+    print "pwd=[$pwd]\n";
+    event_die ("chdir failed strangely path=[$path] pwd=[$pwd]") unless ($pwd eq $path);
+  }
+
   if (exists ($store_cfg->{'inodes'}))
   {
     my $i= $store_cfg->{'inodes'};
@@ -219,6 +236,13 @@ sub usage
   exit -1;
 }
 
+sub event_die
+{
+  my $msg= shift;
+  # TODO: write to MongoDB if an event collection is known
+  die $msg;
+}
+
 sub refresh_md5cat
 {
   my $objreg= shift;
@@ -230,7 +254,7 @@ sub refresh_md5cat
 
   # my $hasher= $objreg->{'hasher'};
 
-  open (CAT, '<:utf8', '_catalog') or die "cant read catalog";
+  open (CAT, '<:utf8', '_catalog') or event_die "cant read catalog";
   my $cnt_processed= 0;
   my $cnt_updated= 0;
   CAT: while (<CAT>)
