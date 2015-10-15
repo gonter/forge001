@@ -64,6 +64,7 @@ my $DEBUG= 0;
 my $STOP= 0;
 my $op_mode= 'refresh';
 my $limit= undef;
+my $show_every= 1000;
 my $cat_file= '_catalog';
 my $ino_file= '_catalog.inodes';
 my $check_inode= 1;
@@ -319,7 +320,8 @@ sub refresh_internal
   printf ("%6d items to be processed\n", scalar @$toc);
   foreach my $x (@$toc)
   {
-    printf ("%6d items processed\n", $cnt) if ((++$cnt % 100) == 0);
+    # print "show_every=[$show_every]\n"; exit;
+    printf ("%6d items processed\n", $cnt) if ((++$cnt % $show_every) == 0);
 # print __LINE__, " k=[$k]\n";
     my $k= $x->{'key'};
     my $p= $x->{'path'};
