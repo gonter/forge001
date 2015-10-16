@@ -4,6 +4,11 @@
 
   vlib001.pl
 
+=head1 VERSION
+
+  Version: 0.50
+  Date: Fri Oct 16 13:09:17 CEST 2015
+
 =head1 USAGE
 
   vlib001.pl -p project-name [-s store-name] [parameters]*
