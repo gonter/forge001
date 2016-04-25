@@ -165,6 +165,9 @@ $DEBUG= 1;
     print "path=[$path]\n";
     my $res= chdir ($path) or event_die ("can not change to $path");;
     print "res=[$res]\n";
+
+    # verify if the chdir really lead to the expected place
+    # TODO: there might be symlinked paths or something like that, so this should pssibly not always fail
     my $pwd= `pwd`; chop($pwd);
     print "pwd=[$pwd]\n";
     event_die ("chdir failed strangely path=[$path] pwd=[$pwd]") unless ($pwd eq $path);
