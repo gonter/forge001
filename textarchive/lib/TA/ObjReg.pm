@@ -97,7 +97,11 @@ sub get_project
   {
        if ($be eq 'TA::Hasher')  { require TA::Hasher; }
     elsif ($be eq 'TA::UrxnBla') { require TA::UrxnBla; }
-    elsif ($be eq 'MongoDB')     { require MongoDB; }
+    elsif ($be eq 'MongoDB')
+    {
+      require MongoDB;
+      require MongoDB::MongoClient;
+    }
     else
     {
       print "ATTN: unknown backend '$be'\n";
@@ -728,14 +732,16 @@ sub connect_MongoDB
   my $cfg= shift;
 
   my $cmm= $cfg->{'MongoDB'};
-  # print "cmm: ", main::Dumper ($cmm);
+  my %cmm_c= map { $_ => $cmm->{$_} } qw(host username password db_name);
+  # print "cmm_c: ", main::Dumper (\%cmm_c);
 
   my ($db, $col0, $col1, $col2);
   eval
   {
-    my $connection= MongoDB::Connection->new(host => $cmm->{'host'});
-    $connection->authenticate($cmm->{'db'}, $cmm->{'user'}, $cmm->{'pass'});
-    $db= $connection->get_database($cmm->{'db'});
+    my $connection= new MongoDB::MongoClient( %cmm_c );
+    print "connection=[$connection]\n";
+    # $connection->authenticate($cmm->{'db'}, $cmm->{'user'}, $cmm->{'pass'});
+    $db= $connection->get_database($cmm->{'db_name'});
 
     $col0= $db->get_collection($cmm->{'maint'});
     $col1= $db->get_collection($cmm->{'catalog'});
