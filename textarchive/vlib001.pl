@@ -99,7 +99,7 @@ while (my $arg= shift (@ARGV))
     elsif ($arg eq '--subdir')   { push (@subdirs, shift (@ARGV)); }
     elsif ($arg eq '--cd')       { $cd_mode= 1; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
-    else { &usage ("unknown option '$arg'"); }
+    else { &usage ("unknown option '--$arg'"); }
   }
   elsif ($arg =~ /^-/)
   {
@@ -240,7 +240,11 @@ exit (0);
 sub usage
 {
   my $msg= shift;
-  print $msg, "\n" if ($msg);
+  if ($msg)
+  {
+    print $msg, "\n";
+    sleep (10);
+  }
   system ('perldoc', $0);
   exit -1;
 }
