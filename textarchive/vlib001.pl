@@ -270,7 +270,7 @@ sub refresh_md5cat
     $cnt_updated++ if (@upd);
   }
   close (CAT);
-  printf ("%6d files processed; %6d files updated\n", $cnt_processed, $cnt_updated);
+  printf ("%9d files processed; %9d files updated\n", $cnt_processed, $cnt_updated);
 }
 
 sub refresh_internal
@@ -316,10 +316,11 @@ sub refresh_internal
   if (defined ($toc))
   {
   # print "toc: ", Dumper ($toc);
-  printf ("%6d items to be processed\n", scalar @$toc);
+  printf ("%9d items to be processed\n", scalar @$toc);
+  print "\npass 1\n";
   foreach my $x (@$toc)
   {
-    printf ("%6d items processed\n", $cnt) if ((++$cnt % 100) == 0);
+    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
 # print __LINE__, " k=[$k]\n";
     my $k= $x->{'key'};
     my $p= $x->{'path'};
@@ -358,16 +359,17 @@ sub refresh_internal
   # print "fl: ", Dumper ($fl);
   }
 
-print __LINE__, " check_new_files\n";
+# print __LINE__, " check_new_files\n";
+  print "\npass 2\n";
   my $new_files= $md5cat->check_new_files ($limit);
   # print "new_files: ", Dumper ($new_files);
-print __LINE__, " integrate_md5_sums\n";
+# print __LINE__, " integrate_md5_sums\n";
   $md5cat->integrate_md5_sums ($new_files);
   # $md5cat->save_catalog (); # TODO: if save_catalog flag is true!
 
 # ZZZ
   # update the Object registry with new items
-  printf ("%6d new items to be processed\n", scalar @$new_files);
+  printf ("%9d new items to be processed\n", scalar @$new_files);
   foreach my $nf (@$new_files)
   {
     my ($md5, $path, $size, $mtime)= @$nf;
@@ -419,7 +421,7 @@ TODO: only drop the thing when it is in the right subdirectory!
     $objreg->remove_from_store ($store, \@drop);
   }
 
-  printf ("files: %6d processed; %6d updated; %6d (%d) dropped\n",
+  printf ("files: %9d processed; %9d updated; %9d (%d) dropped\n",
           $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
 }
 
