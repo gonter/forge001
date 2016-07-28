@@ -6,12 +6,20 @@ use MP3::Info;
 use Data::Dumper;
 $Data::Dumper::Indent= 1;
 
+my $op_mode;
+my $do_move= 0;
+
 my @PAR;
 while (my $arg= shift (@ARGV))
 {
   if ($arg =~ /^-/)
   {
-    &usage;
+    if ($arg eq '--album') { $op_mode= 'album'; }
+    elsif ($arg eq '--move') { $do_move= 1; }
+    else
+    {
+      &usage;
+    }
   }
   else
   {
@@ -19,14 +27,36 @@ while (my $arg= shift (@ARGV))
   }
 }
 
+my %albums;
 foreach my $file (@PAR)
 {
   my $tag= get_mp3tag ($file);
 
-  print "file: [$file]\n";
-  print "tag: ", Dumper ($tag);
+  if ($op_mode eq 'album')
+  {
+    my $album= $tag->{'ALBUM'} || 'unknown album';
+    push (@{$albums{$album}}, $file);
+  }
+  else
+  {
+    print "file: [$file]\n";
+    print "tag: ", Dumper ($tag);
+  }
 }
 
+  if ($op_mode eq 'album')
+  {
+    foreach my $album (sort keys %albums)
+    {
+      print "album=[$album]\n";
+      system ('mkdir', $album) if ($do_move);
+      foreach my $file (@{$albums{$album}})
+      {
+        print "file=[$file]\n";
+        system ('mv', '-i', $file, $album) if ($do_move);
+      }
+    }
+  }
 
 __END__
 

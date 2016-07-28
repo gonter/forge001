@@ -4,6 +4,11 @@
 
   vlib001.pl
 
+=head1 VERSION
+
+  Version: 0.50
+  Date: Fri Oct 16 13:09:17 CEST 2015
+
 =head1 USAGE
 
   vlib001.pl -p project-name [-s store-name] [parameters]*
@@ -64,6 +69,7 @@ my $DEBUG= 0;
 my $STOP= 0;
 my $op_mode= 'refresh';
 my $limit= undef;
+my $show_every= 1000;
 my $cat_file= '_catalog';
 my $ino_file= '_catalog.inodes';
 my $check_inode= 1;
@@ -93,7 +99,7 @@ while (my $arg= shift (@ARGV))
     elsif ($arg eq '--subdir')   { push (@subdirs, shift (@ARGV)); }
     elsif ($arg eq '--cd')       { $cd_mode= 1; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
-    else { &usage ("unknown option '$arg'"); }
+    else { &usage ("unknown option '--$arg'"); }
   }
   elsif ($arg =~ /^-/)
   {
@@ -159,6 +165,9 @@ $DEBUG= 1;
     print "path=[$path]\n";
     my $res= chdir ($path) or event_die ("can not change to $path");;
     print "res=[$res]\n";
+
+    # verify if the chdir really lead to the expected place
+    # TODO: there might be symlinked paths or something like that, so this should pssibly not always fail
     my $pwd= `pwd`; chop($pwd);
     print "pwd=[$pwd]\n";
     event_die ("chdir failed strangely path=[$path] pwd=[$pwd]") unless ($pwd eq $path);
@@ -231,7 +240,11 @@ exit (0);
 sub usage
 {
   my $msg= shift;
-  print $msg, "\n" if ($msg);
+  if ($msg)
+  {
+    print $msg, "\n";
+    sleep (10);
+  }
   system ('perldoc', $0);
   exit -1;
 }
