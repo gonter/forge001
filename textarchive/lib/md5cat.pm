@@ -1,5 +1,5 @@
 #
-# $Id: md5cat.pm,v 1.7 2015/10/15 04:48:14 gonter Exp $
+# $Id: md5cat.pm,v 1.8 2016/08/01 09:40:20 gonter Exp $
 #
 
 =head1 NAME
@@ -237,7 +237,7 @@ sub check_new_files
   {
     last FILE if (defined ($limit) && @tmp_2chk >= $limit);
 
-    printf ("%9d items processed\n", $cnt) if ((++$cnt % 1000) == 0);
+    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
     my $F= $xFLIST->{$fnm};
     my $x= $F->{'state'};
     next if ($x eq 'nocheck');
@@ -534,7 +534,7 @@ sub digest_md5_list
   my $cnt= 0;
   while (my $f= shift (@_))
   {
-    printf ("%9d items processed\n", $cnt) if ((++$cnt % 1000) == 0);
+    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
     my @st= stat ($f);
     unless (@st)
     {
