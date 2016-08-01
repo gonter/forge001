@@ -20,6 +20,7 @@ use strict;
 use File::Find;
 
 use TA::Util;
+use Util::MongoDB;
 
 my %plugins_loaded= ();
 
@@ -100,7 +101,7 @@ sub get_project
     elsif ($be eq 'MongoDB')
     {
       require MongoDB;
-      require MongoDB::MongoClient;
+      # will be included by module "MongoDB" : require MongoDB::MongoClient;
     }
     else
     {
@@ -130,6 +131,10 @@ sub get_project
     {
       my $x= $obj->{'_maint'}->find_one ( { 'an' => 'seq' } );
       $obj->{'seq'}= $seq= $x->{'av'};
+    }
+    else
+    {
+      return undef;
     }
   }
 
@@ -732,6 +737,9 @@ sub connect_MongoDB
   my $cfg= shift;
 
   my $cmm= $cfg->{'MongoDB'};
+
+=begin comment
+
   my %cmm_c= map { $_ => $cmm->{$_} } qw(host username password db_name);
   # print "cmm_c: ", main::Dumper (\%cmm_c);
 
@@ -754,6 +762,19 @@ sub connect_MongoDB
     print "ATTN: can't connect to MongoDB ", (join ('/', map { $cmm->{$_} } qw(host user maint))), "\n";
     return undef;
   }
+
+=end comment
+=cut
+
+  my $db= Util::MongoDB::connect ($cmm);
+  return undef unless (defined ($db));
+  # print "db: ", main::Dumper($db); exit;
+
+  # TODO: streamline ...
+  my $col0= $db->get_collection($cmm->{'maint'});
+  my $col1= $db->get_collection($cmm->{'catalog'});
+  my $col2= $db->get_collection($cmm->{'keys'});
+  # print "col: [$col0] [$col1] [$col2]\n";
 
   $obj->{'_mongo'}= $db;
   $obj->{'_maint'}= $col0;

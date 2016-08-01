@@ -138,6 +138,7 @@ if ($op_mode eq 'edit')
 }
 
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => 'md5');
+# print "objreg: ", Dumper ($objreg); exit;
 &usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
 exit if ($STOP);
@@ -243,7 +244,7 @@ sub usage
   if ($msg)
   {
     print $msg, "\n";
-    sleep (10);
+    sleep (5);
   }
   system ('perldoc', $0);
   exit -1;
