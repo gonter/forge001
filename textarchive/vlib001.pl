@@ -89,17 +89,19 @@ my @subdirs= ();
 while (my $arg= shift (@ARGV))
 {
      if ($arg eq '--') { push (@PAR, @ARGV); @ARGV= (); }
-  elsif ($arg =~ /^--/)
+  elsif ($arg =~ /^--(.+)/)
   {
-       if ($arg eq '--project')  { $project= shift (@ARGV); }
-    elsif ($arg eq '--store')    { $store=   shift (@ARGV); }
-    elsif ($arg eq '--limit')    { $limit=   shift (@ARGV); }
-    elsif ($arg eq '--fileinfo') { $refresh_fileinfo= 1; }
-    elsif ($arg eq '--noinode')  { $check_inode= 0; }
-    elsif ($arg eq '--subdir')   { push (@subdirs, shift (@ARGV)); }
-    elsif ($arg eq '--cd')       { $cd_mode= 1; }
+    my ($opt, $val)= split ('=', $1, 2);
+
+       if ($opt eq 'project')  { $project= $val || shift (@ARGV); }
+    elsif ($opt eq 'store')    { $store=   $val || shift (@ARGV); }
+    elsif ($opt eq 'limit')    { $limit=   $val || shift (@ARGV) ; }
+    elsif ($opt eq 'fileinfo') { $refresh_fileinfo= 1; }
+    elsif ($opt eq 'noinode')  { $check_inode= 0; }
+    elsif ($opt eq 'subdir')   { push (@subdirs, $val || shift (@ARGV)); }
+    elsif ($opt eq 'cd')       { $cd_mode= 1; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
-    else { &usage ("unknown option '--$arg'"); }
+    else { &usage ("unknown option '$arg'"); }
   }
   elsif ($arg =~ /^-/)
   {
