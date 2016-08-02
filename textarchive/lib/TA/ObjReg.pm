@@ -185,8 +185,8 @@ sub lookup
   my $search= shift;
 
   my $be= $obj->{'cfg'}->{'backend'};
-  print "lookup [$search] be=[$be]\n";
-  print main::Dumper ($search);
+  # print "lookup [$search] be=[$be] ", join (' ', %$search), "\n";
+  # print main::Dumper ($search);
 
   my $reg;
   if ($be eq 'TA::Hasher')
