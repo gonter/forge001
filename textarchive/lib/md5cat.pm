@@ -28,6 +28,11 @@ use Digest::MD5::File;
 my $run= 1;
 sub run { $run; }
 
+my $mark_count1= 10000;
+my $mark_count2=  1000;
+my $mark_time=     600; # seconds
+my $last_mark=       0; # epoch
+
 sub new
 {
   my $class= shift;
@@ -242,7 +247,6 @@ sub check_new_files
   {
     last FILE if (defined ($limit) && @tmp_2chk >= $limit);
 
-    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
     my $F= $xFLIST->{$fnm};
     my $x= $F->{'state'};
     next if ($x eq 'nocheck');
@@ -266,7 +270,18 @@ sub check_new_files
     {
       push (@tmp_2chk, $fnm);
     }
+
+    $cnt++;
+
+    if (($mark_count1 && ($cnt % $mark_count1) == 0)
+        || ($mark_time && time() > $last_mark + $mark_time)
+       )
+    {
+      $last_mark= time();
+      printf ("%9d items processed\n", $cnt);
+    }
   }
+
   printf ("%9d files to be checked\n", scalar (@tmp_2chk));
 
   if (@tmp_2chk)
@@ -539,8 +554,6 @@ sub digest_md5_list
   my $cnt= 0;
   MD5: while (my $f= shift (@_))
   {
-    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
-
     last MD5 unless ($run);
 
     my @st= stat ($f);
@@ -553,6 +566,16 @@ sub digest_md5_list
     my $md5= Digest::MD5::File::file_md5_hex ($f);
 printf ("%9d %s %s\n", $st[7], $md5, $f);
     push (@res, [ $md5, $f, $st[7], $st[9] ]);
+
+    $cnt++;
+
+    if (($mark_count2 && ($cnt % $mark_count2) == 0)
+        || ($mark_time && time() > $last_mark + $mark_time)
+       )
+    {
+      $last_mark= time();
+      printf ("%9d items processed\n", $cnt);
+    }
   }
 
   (wantarray) ? @res : \@res;
