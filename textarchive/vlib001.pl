@@ -127,7 +127,7 @@ unless (defined ($project))
 {
   print "no project specified; check these:\n";
   system ("ls -ls \"$ENV{'TABASE'}/projects\"");
-  exit (0);
+  exit (2);
 }
 # &usage ('no store specified') unless (defined ($store));
 
@@ -136,14 +136,16 @@ if ($op_mode eq 'edit')
   my ($proj_cfg_dir, $proj_cfg_fnm)= TA::ObjReg::_get_project_paths($project);
   system ($EDITOR, $proj_cfg_fnm);
   # print "store_cfg: ", Dumper ($store_cfg);
-  exit;
+  exit(0);
 }
 
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => 'md5');
 # print "objreg: ", Dumper ($objreg); exit;
 &usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
-exit if ($STOP);
+exit(2) if ($STOP);
+
+$SIG{INT}= sub { $STOP= 1; print "SIGINT received\n"; };
 
 if ($op_mode eq 'refresh')
 {
@@ -155,7 +157,7 @@ if ($op_mode eq 'refresh')
   unless (defined ($store_cfg))
   {
     print "no store config found for '$store', check these: ", Dumper ($stores_p);
-    exit (-2);
+    exit (2);
   }
 
 # ZZZ
@@ -223,7 +225,7 @@ elsif ($op_mode eq 'get-cat')
   unless (defined ($store_cfg))
   {
     print "no store config found for '$store', check these: ", Dumper ($stores_p);
-    exit (-2);
+    exit (2);
   }
   print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
 
@@ -237,6 +239,12 @@ elsif ($op_mode eq 'next-seq')
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
+
+if ($STOP)
+{
+  print "STOP set, exit 2\n";
+  exit(2);
+}
 
 exit (0);
 
@@ -256,7 +264,9 @@ sub event_die
 {
   my $msg= shift;
   # TODO: write to MongoDB if an event collection is known
-  die $msg;
+  print join (' ', caller), "\n";
+  print $msg;
+  exit (2);
 }
 
 sub refresh_md5cat
@@ -379,6 +389,12 @@ sub refresh_internal
   print "\npass 2\n";
   my $new_files= $md5cat->check_new_files ($limit);
   # print "new_files: ", Dumper ($new_files);
+  unless ($md5cat->run())
+  {
+    print "SIGINT received in \$md5cat->check_new_files()\n";
+    $STOP= 1;
+  }
+
 # print __LINE__, " integrate_md5_sums\n";
   $md5cat->integrate_md5_sums ($new_files);
   # $md5cat->save_catalog (); # TODO: if save_catalog flag is true!
