@@ -1,5 +1,5 @@
 #
-# $Id: md5cat.pm,v 1.8 2016/08/01 09:40:20 gonter Exp $
+# $Id: md5cat.pm,v 1.9 2016/08/02 08:24:55 gonter Exp $
 #
 
 =head1 NAME
@@ -25,6 +25,9 @@ use strict;
 
 use Digest::MD5::File;
 
+my $run= 1;
+sub run { $run; }
+
 sub new
 {
   my $class= shift;
@@ -45,6 +48,8 @@ sub new
   $md5cat->{'INO'}= {};
 
   $md5cat->set_catalog ();
+
+  $SIG{INT}= sub { $run= 0 };
 
   $md5cat;
 }
@@ -532,9 +537,12 @@ sub digest_md5_list
   my @res= ();
 
   my $cnt= 0;
-  while (my $f= shift (@_))
+  MD5: while (my $f= shift (@_))
   {
     printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
+
+    last MD5 unless ($run);
+
     my @st= stat ($f);
     unless (@st)
     {
