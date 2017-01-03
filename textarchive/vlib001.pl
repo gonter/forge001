@@ -616,6 +616,12 @@ sub verify_toc_item
 
 __END__
 
+=head1 INSTALLATION
+
+=head2 Ubuntu
+
+  apt-get install libmongodb-perl libdigest-md5-file-perl
+
 =head1 TODO
 
 =head2 auto-check-mode
