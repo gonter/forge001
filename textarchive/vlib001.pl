@@ -60,6 +60,7 @@ use TA::ObjReg;
 # use TA::Hasher;
 # use TA::Util;
 use md5cat;
+use Util::ts qw(ts_ISO);
 
 my @PAR= ();
 my $project;
@@ -401,16 +402,21 @@ sub refresh_internal
 
 # ZZZ
   # update the Object registry with new items
-  printf ("%9d new items to be processed\n", scalar @$new_files);
+  my $cnt_total= scalar @$new_files;
+  my $cnt_done= 0;
+  printf ("%9d new items to be processed\n", $cnt_total);
   foreach my $nf (@$new_files)
   {
     my ($md5, $path, $size, $mtime)= @$nf;
     # print "md5=[$md5] size=[$size] path=[$path]\n";
 
-    $cnt_processed++;
+    $cnt_processed++; # NOTE: one counter for several processing steps??
     my @upd= process_file ($md5, $path, $size);
     $cnt_updated++ if (@upd);
+
+    printf ("%s done %d of %d, updated %d\n", ts_ISO(), $cnt_done, $cnt_total, $cnt_updated) if ((++$cnt_done % 100) == 0);
   }
+  printf ("%s done %d of %d, updated %d\n", ts_ISO(), $cnt_done, $cnt_total, $cnt_updated);
 
   # get filelist again after reintegration to find keys which are no longer in the catalog
   $fl= $md5cat->{'FLIST'};

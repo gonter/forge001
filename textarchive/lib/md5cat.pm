@@ -1,5 +1,5 @@
 #
-# $Id: md5cat.pm,v 1.9 2016/08/02 08:24:55 gonter Exp $
+# $Id: md5cat.pm,v 1.11 2017/01/03 06:21:43 gonter Exp $
 #
 
 =head1 NAME
@@ -353,8 +353,8 @@ sub check_new_files
       close (FO);
     }
 
-  push (@main::REPORT, sprintf ("checked %s: %8d (%s)", $md5cat->{'chksum_pgm'}, scalar (@tmp_2chk)));
-  push (@main::REPORT, sprintf ("checked openssl: %8d (%s)", $QUEUE_openssl));
+  push (@main::REPORT, sprintf ("checked %s: %10d (%s)", $md5cat->{'chksum_pgm'}, scalar (@tmp_2chk)));
+  push (@main::REPORT, sprintf ("checked openssl: %10d (%s)", $QUEUE_openssl));
 
   (wantarray) ? @res : \@res;
 }
@@ -523,8 +523,8 @@ this may be obsolete and shold be removed
   }
 
   close (FI);
-  push (@main::REPORT, sprintf ("retained: %8d (%s)", $cnt_retained, $list));
-  push (@main::REPORT, sprintf ("dropped:  %8d (%s)", $cnt_dropped,  $list));
+  push (@main::REPORT, sprintf ("retained: %10d (%s)", $cnt_retained, $list));
+  push (@main::REPORT, sprintf ("dropped:  %10d (%s)", $cnt_dropped,  $list));
 
   return $rc;
 }
@@ -564,7 +564,7 @@ sub digest_md5_list
     }
 
     my $md5= Digest::MD5::File::file_md5_hex ($f);
-printf ("%9d %s %s\n", $st[7], $md5, $f);
+printf ("%10d %s %s\n", $st[7], $md5, $f);
     push (@res, [ $md5, $f, $st[7], $st[9] ]);
 
     $cnt++;
