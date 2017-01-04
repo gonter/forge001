@@ -32,9 +32,12 @@
 =head1 DESCRIPTION
 
 Updates a file catalog using md5cat library methods and registers the
-files in the project's object registry.  The environment variable TABASE
-must point to the directory where the object registry's configuration
-is stored.
+files in the project's object registry.  Either the environment variable
+TAPROJ or TABASE must point to the directory where the object registry's
+configuration is stored.  The configuration is named either
+  $ENV{'TAPROJ'}/<project>/config.json
+or
+  $ENV{'TABASE'}/projects/<project>/config.json
 
 =head1 BACKENDS
 
@@ -122,14 +125,25 @@ while (my $arg= shift (@ARGV))
 
 print "debug level: $DEBUG\n";
 
-&usage ('environment variable TABASE not set') unless (exists ($ENV{'TABASE'}));
+my $TAPROJ;
+if (exists ($ENV{'TAPROJ'}))
+{
+  $TAPROJ= $ENV{'TAPROJ'};
+}
+else
+{
+  &usage ('environment variable TAPROJ or TABASE not set') unless (exists ($ENV{'TABASE'}));
+  $TAPROJ= join ('/', $ENV{'TABASE'}, 'projects');
+}
+
 # &usage ('no project specified') unless (defined ($project));
 unless (defined ($project))
 {
   print "no project specified; check these:\n";
-  system ("ls -ls \"$ENV{'TABASE'}/projects\"");
+  system ('ls -ls "$TAPROJ"');
   exit (2);
 }
+
 # &usage ('no store specified') unless (defined ($store));
 
 if ($op_mode eq 'edit')
@@ -157,7 +171,8 @@ if ($op_mode eq 'refresh')
   my $store_cfg= $stores_p->{$store};
   unless (defined ($store_cfg))
   {
-    print "no store config found for '$store', check these: ", Dumper ($stores_p);
+    print "no store config found", (($store) ? " for '$store'" : ''), "; check these: ", join (', ', sort keys %$stores_p), "\n";
+    print "or use --edit to find out more\n";
     exit (2);
   }
 
@@ -630,9 +645,13 @@ __END__
     locate all the stores on a given machine, so there should be an option
     that updates everything.
   * specifing the store should be optional.
+  * environment variable TAPROJ:
+    * add pod section
+    * allow command line option to specify alternative base directory name
   * environment variable TABASE:
     * add pod section
     * allow command line option to specify alternative base directory name
+  * maybe a better name than TAPROJ (or even TABASE) would make sense
 
 =head2 misc
 

@@ -67,7 +67,15 @@ sub _get_project_paths
 {
   my $proj_name= shift;
 
-  my $proj_cfg_dir= join ('/', $ENV{'TABASE'}, 'projects', $proj_name);
+  my $proj_cfg_dir;
+  if (exists ($ENV{'TAPROJ'}))
+  {
+    $proj_cfg_dir = join ('/', $ENV{'TAPROJ'}, $proj_name);
+  }
+  else
+  {
+    $proj_cfg_dir = join ('/', $ENV{'TABASE'}, 'projects', $proj_name);
+  }
   my $proj_cfg_fnm= join ('/', $proj_cfg_dir, 'config.json');
 
   return ($proj_cfg_dir, $proj_cfg_fnm);
