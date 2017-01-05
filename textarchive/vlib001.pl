@@ -139,8 +139,8 @@ else
 # &usage ('no project specified') unless (defined ($project));
 unless (defined ($project))
 {
-  print "no project specified; check these:\n";
-  system ('ls -ls "$TAPROJ"');
+  print "no project specified; check these (TAPROJ=[$TAPROJ]):\n";
+  system ('ls', '-ls', $TAPROJ);
   exit (2);
 }
 
