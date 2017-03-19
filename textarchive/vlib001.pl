@@ -171,7 +171,7 @@ if ($op_mode eq 'refresh')
   my $store_cfg= $stores_p->{$store};
   unless (defined ($store_cfg))
   {
-    print "no store config found", (($store) ? " for '$store'" : ''), "; check these: ", join (', ', sort keys %$stores_p), "\n";
+    print "no store config found", (($store) ? " for '$store'" : ''), "; check these: ", join (' ', sort keys %$stores_p), "\n";
     print "or use --edit to find out more\n";
     exit (2);
   }
