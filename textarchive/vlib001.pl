@@ -104,7 +104,7 @@ while (my $arg= shift (@ARGV))
     elsif ($opt eq 'noinode')  { $check_inode= 0; }
     elsif ($opt eq 'subdir')   { push (@subdirs, $val || shift (@ARGV)); }
     elsif ($opt eq 'cd')       { $cd_mode= 1; }
-    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat)$/) { $op_mode= $1; }
+    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat|policy)$/) { $op_mode= $1; }
     else { &usage ("unknown option '$arg'"); }
   }
   elsif ($arg =~ /^-/)
@@ -252,6 +252,13 @@ elsif ($op_mode eq 'next-seq')
 {
   my $x= $objreg->next_seq ();
   print "x: ", Dumper ($x);
+}
+elsif ($op_mode eq 'policy')
+{
+  # my $catalog= $objreg->{'cfg'}->{'catalog'};
+  # &usage ('no catalog found in config') unless (defined ($catalog));
+
+  $objreg->check_policy ();
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);

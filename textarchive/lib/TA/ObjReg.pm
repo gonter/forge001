@@ -623,7 +623,7 @@ sub remove_from_store
   my $objreg= shift;
   my $store= shift;
   my $drop_list= shift; # array ref containing entries: [ $md5, $path ]
-  # TODO: maybe a more universial format could be useful
+  # TODO: maybe a more universal format could be useful
 
   my $be= $objreg->{'cfg'}->{'backend'};
   if ($be eq 'TA::Hasher')
@@ -683,6 +683,185 @@ sub remove_store
 
 =end comment
 =cut
+
+sub check_policy
+{
+  my $objreg= shift;
+
+  # print __LINE__, " objreg: ", main::Dumper ($objreg);
+
+  my ($be, $policy)= map { $objreg->{'cfg'}->{$_} } qw(backend policy);
+  unless ($be eq 'MongoDB')
+  {
+    print "not implemented for backend [$be]\n";
+    return undef;
+  }
+
+  unless (defined ($policy))
+  {
+    print "no policy defined\n";
+    return undef;
+  }
+
+  print __LINE__, " policy: ", main::Dumper ($policy);
+  my ($key, $rs_list, $check_list, $ign_keys, $ign_paths)= map { $policy->{$_} } qw(key replica_sets check ignore_key ignore_path_pattern);
+  my @check_list= @$check_list;
+  my %ign_keys; %ign_keys= map { $_ => 1 } @$ign_keys if (defined ($ign_keys));
+  my $replica_map= get_replica_map ($rs_list);
+
+# my $MIN_SIZE= 2_000_000_000;
+my $MIN_SIZE=   200_000_000;
+  my $cursor= $objreg->{'_cat'}->find ( { fs_size => { '$gt' => $MIN_SIZE } } );
+
+  my %items= ();
+  my $item_count= 0;
+  ITEM: while (my $item= $cursor->next())
+  {
+    my $kv= $item->{$key};
+    next ITEM if (exists ($ign_keys{$kv}));
+
+    my $path= $item->{path};
+    foreach my $ign_path (@$ign_paths)
+    {
+      next ITEM if ($path =~ m#$ign_path#);
+    }
+
+    # print __LINE__, " key=[$key] kv=[$kv] item: ", main::Dumper ($item);
+
+    my $rec= $items{$kv};
+    if (defined ($rec))
+    {
+      # print "duplicate key...\n";
+      my $mismatch= 0;
+      foreach my $an (@check_list) { $mismatch++ if ($rec->{$an} ne $item->{$an}); }
+
+      if ($mismatch)
+      {
+        print "item mismatch on key=[$key]: rec: ", main::Dumper ($rec), "item: ", main::Dumper ($item);
+        next ITEM;
+      }
+    }
+    else
+    {
+      my %rec= map { $_ => $item->{$_} } (@check_list, qw(fileinfo));
+      $rec= $items{$kv}= \%rec;
+    }
+
+    push (@{$rec->{stores}->{$item->{store}}}, $path);
+    $item_count++;
+  }
+  print __LINE__, " item_count: $item_count\n";
+  # print __LINE__, " items: ", main::Dumper (\%items);
+
+  foreach my $kv (keys %items)
+  {
+    my $item= $items{$kv};
+    check_replication_policy ($replica_map, $item);
+  }
+}
+
+sub get_replica_map
+{
+  my $rs_list= shift;
+  print __LINE__, " rs_list: ", main::Dumper ($rs_list);
+
+  my $map=
+  {
+    stores => {},
+    store_count => {},
+  };
+
+  foreach my $rs (keys %$rs_list)
+  {
+    foreach my $store (@{$rs_list->{$rs}})
+    {
+      $map->{stores}->{$store}= $rs;
+      $map->{store_count}->{$rs}++;
+    }
+  }
+
+  print __LINE__, " map: ", main::Dumper ($map);
+  $map;
+}  
+
+sub check_replication_policy
+{
+  my $map= shift;
+  my $item= shift;
+
+  # print __LINE__, ' item: ', main::Dumper ($item);
+  # print __LINE__, ' map: ', main::Dumper ($map);
+  my @diag;
+
+  my %replica_sets;
+  my $stores= $item->{stores};
+  foreach my $store (keys %$stores)
+  {
+    # print __LINE__, " store=[$store]\n";
+    my @paths= $stores->{$store};
+    if (@paths > 1)
+    {
+      push (@diag, [ 'store_duplicate', $store ]);
+    }
+
+    if (exists ($map->{stores}->{$store}))
+    {
+      my $set= $map->{stores}->{$store};
+      $replica_sets{$set}++;
+    }
+    else
+    {
+      push (@diag, [ 'store_not_in_replica_set', $store ]);
+    }
+  }
+
+  my $prefered_replica_set;
+  my @replica_sets= sort keys %replica_sets;
+     if (@replica_sets == 0) { push (@diag, [ 'no_replica_set' ]); }
+  elsif (@replica_sets >  1) { push (@diag, [ 'multiple_replica_sets', join (' ', @replica_sets) ]); }
+  elsif (@replica_sets == 1)
+  { # NOTE: the object is in one replica set, now check, if it is present in all stores;
+
+    # TODO: it should be possible to have say 10 stores in one replica set
+    # and specify that an object must be present in at least 3 of them.
+    # Right now, the map does not contain this info.  Maybe the config
+    # should specify the real # map and not simple lists of replica sets ...
+
+    # TODO: the replication map should also encode geographically
+    # distributed replicas.  E.g. have at least 3 replicas on different
+    # locations
+
+    $prefered_replica_set= $replica_sets[0];
+
+    if ($replica_sets{$prefered_replica_set} != $map->{store_count}->{$prefered_replica_set})
+    {
+      my @missing;
+      my $ms= $map->{stores};
+      foreach my $store (sort keys %$ms)
+      {
+        push (@missing, $store) if ($ms->{$store} eq $prefered_replica_set && !exists ($stores->{$store}));
+      }
+
+      push (@diag, [ 'replica_set_incomplete', join (' ', @missing) ]);
+    }
+  }
+
+  # NOTE: there are different kings of problems:
+  # * an object with too few replicas in a given replica set is a problem
+  # * an object with all replicas but with extra copies is not really a problem, but should be noted
+
+  if (@diag)
+  {
+    print "ATTN: replication policy problem; prefered_replica_set=[$prefered_replica_set]\n";
+    print join ("\n", map { 'NOTE: ' . join (' ', @$_) } @diag), "\n";
+    print __LINE__, ' item: ', main::Dumper ($item);
+  }
+
+  {
+    prefered_replica_set => $prefered_replica_set,
+    diag => \@diag,
+  }
+}
 
 =head1 sequence number
 
