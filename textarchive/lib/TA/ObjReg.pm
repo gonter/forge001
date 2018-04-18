@@ -709,8 +709,7 @@ sub check_policy
   my %ign_keys; %ign_keys= map { $_ => 1 } @$ign_keys if (defined ($ign_keys));
   my $replica_map= get_replica_map ($rs_list);
 
-# my $MIN_SIZE= 2_000_000_000;
-my $MIN_SIZE=   200_000_000;
+my $MIN_SIZE=  10_000_000; # TODO: this should come from the config!
   my $cursor= $objreg->{'_cat'}->find ( { fs_size => { '$gt' => $MIN_SIZE } } );
 
   my %items= ();
