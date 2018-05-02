@@ -65,7 +65,6 @@ use TA::ObjReg;
 use md5cat;
 use Util::ts qw(ts_ISO);
 
-my @PAR= ();
 my $project;
 my $store;
 my $refresh_fileinfo= 0;
@@ -88,11 +87,20 @@ my $Dir_Pattern= '.';
 my $DEFAULT_file_list= "find $Dir_Pattern -xdev -type f -print|";
 # --- >8 ---
 
+my $par_mode= 'PAR';
+my @PAR= ();
 my @subdirs= ();
+my @files= ();
 
 while (my $arg= shift (@ARGV))
 {
-     if ($arg eq '--') { push (@PAR, @ARGV); @ARGV= (); }
+  if ($arg eq '--')
+  {
+       if ($par_mode eq 'subdir') { push (@subdirs, @ARGV); }
+    elsif ($par_mode eq 'file')   { push (@files, @ARGV); }
+    else                          { push (@PAR, @ARGV); }
+    @ARGV= ();
+  }
   elsif ($arg =~ /^--(.+)/)
   {
     my ($opt, $val)= split ('=', $1, 2);
@@ -102,7 +110,8 @@ while (my $arg= shift (@ARGV))
     elsif ($opt eq 'limit')    { $limit=   $val || shift (@ARGV) ; }
     elsif ($opt eq 'fileinfo') { $refresh_fileinfo= 1; }
     elsif ($opt eq 'noinode')  { $check_inode= 0; }
-    elsif ($opt eq 'subdir')   { push (@subdirs, $val || shift (@ARGV)); }
+    elsif ($opt eq 'subdir')   { $par_mode= 'subdir'; }
+    elsif ($opt eq 'file')     { $par_mode= 'file'; }
     elsif ($opt eq 'cd')       { $cd_mode= 1; }
     elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat|policy)$/) { $op_mode= $1; }
     else { &usage ("unknown option '$arg'"); }
@@ -120,7 +129,12 @@ while (my $arg= shift (@ARGV))
       else { &usage ("unknown option '-$a'"); }
     }
   }
-  else { push (@PAR, $arg); }
+  else
+  {
+       if ($par_mode eq 'subdir') { push (@subdirs, $arg); }
+    elsif ($par_mode eq 'file')   { push (@files, $arg); }
+    else                          { push (@PAR, $arg); }
+  }
 }
 
 print "debug level: $DEBUG\n";
@@ -176,7 +190,6 @@ if ($op_mode eq 'refresh')
     exit (2);
   }
 
-# ZZZ
 $DEBUG= 1;
   print "store_cfg: ", Dumper ($store_cfg) if ($DEBUG);
   
@@ -319,7 +332,7 @@ sub refresh_md5cat
     $cnt_updated++ if (@upd);
   }
   close (CAT);
-  printf ("%9d files processed; %9d files updated\n", $cnt_processed, $cnt_updated);
+  printf ("%10d files processed; %10d files updated\n", $cnt_processed, $cnt_updated);
 }
 
 sub refresh_internal
@@ -334,46 +347,65 @@ sub refresh_internal
 
   $objreg->verify_toc (\&verify_toc_item, \@hdr);
   print "TOC verified\n";
-  my $toc= $objreg->load_single_toc ($store);
-  # print "toc: ", Dumper ($toc);
 
   my $md5cat= new md5cat ();
 
+  my $quick_mode= 0;
+
   if (@subdirs)
   {
+    $quick_mode= 1;
     foreach my $subdir (@subdirs)
     {
       my $subdir_file_list= "find '$subdir' -xdev -type f -print|";
+      print __LINE__, " subdir_file_list: ", Dumper ($subdir_file_list);
       $md5cat->read_flist ($subdir_file_list);
+      # print __LINE__, " md5cat: ", Dumper ($md5cat);
     }
   }
-  else
+
+  if (@files)
   {
-    $md5cat->read_flist ($DEFAULT_file_list);
+    $quick_mode= 1;
+
+    # TODO: check just that single file!
+    $md5cat->process_flist (@files);
+    # print __LINE__, " md5cat: ", Dumper ($md5cat);
   }
 
-  # print "md5cat: ", Dumper ($md5cat);
+  $md5cat->read_flist ($DEFAULT_file_list) unless ($quick_mode);
+
+  # print __LINE__, " md5cat: ", Dumper ($md5cat);
   print "flist processed\n";
+
+  my $fl= $md5cat->{'FLIST'};
+  # print __LINE__, " fl: ", Dumper ($fl);
+
+  my $path_list;
+  $path_list= [ sort keys %$fl ] if ($quick_mode);
+  # print __LINE__, " path_list: ", Dumper ($path_list);
+
+  my $toc= $objreg->load_single_toc ($store, undef, $path_list);
+  # print "toc: ", Dumper ($toc);
 
   my @check_list= qw(mtime size);
   push (@check_list, 'ino') if ($check_inode);
 
   # compare TOC and reference filelist
-  my $fl= $md5cat->{'FLIST'};
   my %key= ();
   my $cnt= 0;
   if (defined ($toc))
   {
-  # print "toc: ", Dumper ($toc);
-  printf ("%9d items to be processed\n", scalar @$toc);
-  print "\npass 1\n";
-  foreach my $x (@$toc)
-  {
-    printf ("%9d items processed\n", $cnt) if ((++$cnt % 10000) == 0);
+    # print "toc: ", Dumper ($toc);
+    printf ("%10d items to be processed\n", scalar @$toc);
+    print "\npass 1\n";
+    foreach my $x (@$toc)
+    {
+      printf ("%10d items processed\n", $cnt) if ((++$cnt % 10000) == 0); # TODO: or after a certain time passed
 # print __LINE__, " k=[$k]\n";
-    my $k= $x->{'key'};
-    my $p= $x->{'path'};
-    $key{$k}->{$p}= 0;
+      my $k= $x->{'key'};
+      my $p= $x->{'path'};
+      $key{$k}->{$p}= 0;
 
     if (exists ($fl->{$p}))
     {
@@ -402,10 +434,10 @@ sub refresh_internal
       # print "file missing: ", Dumper ($x);
       $cnt_dropped++;
     }
-  }
-  # my %paths= map { my $x= $toc->{$_}; $x->{'found'}= 0; $x->{'path'} => $x } keys %$toc;
-  # print "paths: ", Dumper (\%paths);
-  # print "fl: ", Dumper ($fl);
+    }
+    # my %paths= map { my $x= $toc->{$_}; $x->{'found'}= 0; $x->{'path'} => $x } keys %$toc;
+    # print "paths: ", Dumper (\%paths);
+    # print "fl: ", Dumper ($fl);
   }
 
 # print __LINE__, " check_new_files\n";
@@ -422,11 +454,10 @@ sub refresh_internal
   $md5cat->integrate_md5_sums ($new_files);
   # $md5cat->save_catalog (); # TODO: if save_catalog flag is true!
 
-# ZZZ
   # update the Object registry with new items
   my $cnt_total= scalar @$new_files;
   my $cnt_done= 0;
-  printf ("%9d new items to be processed\n", $cnt_total);
+  printf ("%10d new items to be processed\n", $cnt_total);
   foreach my $nf (@$new_files)
   {
     my ($md5, $path, $size, $mtime)= @$nf;
@@ -450,13 +481,13 @@ sub refresh_internal
   # print __LINE__, " key: ", Dumper (\%key);
 
   my @drop= ();
-  if (@subdirs)
+  if ($quick_mode)
   {
 
 =begin comment
 
-NOTE: we only inspected a subdirectory, but this inspects everything
-and would remove items that were not even inspected
+NOTE: we only inspected some subdirectores or files, but this inspects
+everything and would remove items that were not even inspected
 
 TODO: only drop the thing when it is in the right subdirectory!
 
@@ -481,7 +512,7 @@ TODO: only drop the thing when it is in the right subdirectory!
     $objreg->remove_from_store ($store, \@drop);
   }
 
-  printf ("files: %9d processed; %9d updated; %9d (%d) dropped\n",
+  printf ("files: %10d processed; %10d updated; %10d (%d) dropped\n",
           $cnt_processed, $cnt_updated, $cnt_dropped, scalar (@drop));
 }
 

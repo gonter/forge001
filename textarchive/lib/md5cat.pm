@@ -97,7 +97,7 @@ sub save_catalog
   foreach my $xf (sort keys %$xFLIST)
   {
     my $xfo= $xFLIST->{$xf};
-    printf CAT ("%s file %9d %s\n", $xfo->{'md5'}, $xfo->{'fs_size'}, $xf);
+    printf CAT ("%s file %10d %s\n", $xfo->{'md5'}, $xfo->{'fs_size'}, $xf);
     # print CAT $CAT{$entry}, "\n";
   }
   close (CAT);
@@ -134,9 +134,6 @@ sub read_flist
   my $md5cat= shift;
   my $fnm= shift;
 
-  my $xFLIST= $md5cat->{'FLIST'};
-  my $INO= $md5cat->{'INO'};
-
   print "reading reference list: [$fnm]\n";
   unless (open (FI, $fnm))
   {
@@ -144,7 +141,7 @@ sub read_flist
     return -1;
   }
 
-  my $ref_cnt= 0;
+  my @files;
   while (<FI>)
   {
     s/\015//g;
@@ -164,6 +161,24 @@ sub read_flist
             );
     next if ($md5cat->{'skip_vcs'} && $_ =~ m#(^|/)(CVS|\.git|\.svn|.bzr|RCS)/#);
 
+    push (@files, $_);
+  }
+  close (FI);
+
+  $md5cat->process_flist (@files);
+}
+
+# ----------------------------------------------------------------------------
+sub process_flist
+{
+  my $md5cat= shift;
+
+  my $xFLIST= $md5cat->{'FLIST'};
+  my $INO= $md5cat->{'INO'};
+
+  my $ref_cnt= 0;
+  foreach (@_)
+  {
     my @st= stat ($_);
     my $ino= $st[1];
 
@@ -172,7 +187,6 @@ sub read_flist
 
     push (@{$INO->{$ino}}, $_);
   }
-  close (FI);
   $ref_cnt;
 }
 
@@ -278,11 +292,11 @@ sub check_new_files
        )
     {
       $last_mark= time();
-      printf ("%9d items processed\n", $cnt);
+      printf ("%10d items processed\n", $cnt);
     }
   }
 
-  printf ("%9d files to be checked\n", scalar (@tmp_2chk));
+  printf ("%10d files to be checked\n", scalar (@tmp_2chk));
 
   if (@tmp_2chk)
   {
@@ -451,7 +465,7 @@ sub check_md5_entries
       # Uh, this needs to be redesigned soon!
       my @stf= stat ($fnm);
       $size= $stf[7];
-      # $_= sprintf ("%s file %9d %s", $f[0], $size, $fnm);
+      # $_= sprintf ("%s file %10d %s", $f[0], $size, $fnm);
     }
     else
     {
@@ -574,7 +588,7 @@ printf ("%10d %s %s\n", $st[7], $md5, $f);
        )
     {
       $last_mark= time();
-      printf ("%9d items processed\n", $cnt);
+      printf ("%10d items processed\n", $cnt);
     }
   }
 
@@ -600,7 +614,7 @@ sub digest_md5_file
     }
 
     my $md5= Digest::MD5::File::file_md5_hex ($f);
-    printf FO ("%s file %9d %s\n", $md5, $st[7], $f);
+    printf FO ("%s file %10d %s\n", $md5, $st[7], $f);
   }
   close (FI);
   close (FO);

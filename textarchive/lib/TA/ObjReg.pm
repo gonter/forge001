@@ -366,9 +366,10 @@ sub load_single_toc
 {
   my $reg= shift;
   my $store= shift;
-  my $cache= shift;
+  my $cache= shift; # TODO: what is that intended for??
+  my $path_list= shift;
 
-print "load_single_toc: store=[$store]\n";
+  # print __LINE__, " load_single_toc: store=[$store] path_list=[$path_list]\n";
   if ((my $be= $reg->{'cfg'}->{'backend'}) eq 'TA::Hasher')
   {
     my $c= $reg->{'proj_cat'};
@@ -384,7 +385,15 @@ print "load_single_toc: store=[$store]\n";
   }
   elsif ($be eq 'MongoDB')
   {
-    my $cursor= $reg->{'_cat'}->find ( { 'store' => $store } );
+    my $search= { store => $store };
+    if (defined ($path_list))
+    {
+      print __LINE__, " load_single_toc; path_list DEFINED\n";
+      $search->{path}= { '$in' => $path_list };
+    }
+    # print __LINE__, " load_single_toc; search: ", main::Dumper ($search);
+
+    my $cursor= $reg->{'_cat'}->find ($search);
     # print "cursor=[$cursor]\n";
     my @all= $cursor->all ();
     return \@all;
