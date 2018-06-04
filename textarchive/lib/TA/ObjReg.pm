@@ -24,6 +24,10 @@ use Util::MongoDB;
 
 my %plugins_loaded= ();
 
+# TODO: this should come from the config!
+# my $POLICY_MIN_SIZE;
+my $POLICY_MIN_SIZE= 1_000_000;
+
 sub new
 {
   my $class= shift;
@@ -718,8 +722,10 @@ sub check_policy
   my %ign_keys; %ign_keys= map { $_ => 1 } @$ign_keys if (defined ($ign_keys));
   my $replica_map= get_replica_map ($rs_list);
 
-my $MIN_SIZE=  10_000_000; # TODO: this should come from the config!
-  my $cursor= $objreg->{'_cat'}->find ( { fs_size => { '$gt' => $MIN_SIZE } } );
+  my $search;
+  $search->{fs_size}= { '$gt' => $POLICY_MIN_SIZE } if (defined ($POLICY_MIN_SIZE) && $POLICY_MIN_SIZE);
+
+  my $cursor= $objreg->{'_cat'}->find ($search);
 
   my %items= ();
   my $item_count= 0;
