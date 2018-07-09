@@ -134,7 +134,7 @@ sub read_flist
   my $md5cat= shift;
   my $fnm= shift;
 
-  print "reading reference list: [$fnm]\n";
+  print scalar localtime(time()), " reading reference list: [$fnm]\n";
   unless (open (FI, $fnm))
   {
     print __LINE__, " could not open '$fnm'!\n";

@@ -157,7 +157,7 @@ sub get_project
 print "new seq: ", main::Dumper ($seq);
 #   if ($be eq 'MongoDB')
 #   {
-#     $obj->{'_maint'}->insert ( { 'an' => 'seq', 'av' => $seq } );
+#     $obj->{'_maint'}->insert_one ( { 'an' => 'seq', 'av' => $seq } );
 #   }
 #   else
 #   {
@@ -279,7 +279,7 @@ sub save
     }
 
     # print "new_reg: ", main::Dumper ($new_reg);
-    $obj->{'_cat'}->update ($search, $new_reg, { 'upsert' => 1 } );
+    $obj->{'_cat'}->replace_one ($search, $new_reg, { 'upsert' => 1 } );
   }
 }
 
@@ -295,7 +295,7 @@ sub mdb_get_seq_for_key
   return $kv->{'seq'} if (defined ($kv));
 
   $s->{'seq'}= my $seq= $obj->next_seq ();
-  $k->insert ($s);
+  $k->insert_one ($s);
   $seq;
 }
 
@@ -373,7 +373,7 @@ sub load_single_toc
   my $cache= shift; # TODO: what is that intended for??
   my $path_list= shift;
 
-  # print __LINE__, " load_single_toc: store=[$store] path_list=[$path_list]\n";
+  # print __LINE__, ' ', scalar localtime(time()), " load_single_toc: store=[$store] path_list=[$path_list]\n";
   if ((my $be= $reg->{'cfg'}->{'backend'}) eq 'TA::Hasher')
   {
     my $c= $reg->{'proj_cat'};
@@ -657,7 +657,7 @@ sub remove_from_store
     {
       my ($id_str, $path)= @$item;
       print "drop: key=[$id_str] store=[$store] path=[$path]\n";
-      $_cat->remove ( { 'key' => $id_str, 'type' => $objreg->{'key'},
+      $_cat->remove_one ( { 'key' => $id_str, 'type' => $objreg->{'key'},
          'store' => $store, 'path' => $path } );
     }
     return {}; # TODO: TA::Hasher variant returns dropped items
@@ -905,7 +905,7 @@ sub _save_seq
   }
   else
   {
-    $reg->{'_maint'}->update ( { 'an' => 'seq' }, { 'an' => 'seq', 'av' => $reg->{'seq'} }, { 'upsert' => 1 } );
+    $reg->{'_maint'}->replace_one ( { 'an' => 'seq' }, { 'an' => 'seq', 'av' => $reg->{'seq'} }, { 'upsert' => 1 } );
   }
 }
 
