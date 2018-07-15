@@ -271,7 +271,23 @@ elsif ($op_mode eq 'policy')
   # my $catalog= $objreg->{'cfg'}->{'catalog'};
   # &usage ('no catalog found in config') unless (defined ($catalog));
 
-  $objreg->check_policy ();
+  my ($copy)= $objreg->check_policy ();
+  print __LINE__, " copy: ", main::Dumper ($copy);
+
+  foreach my $s_repo (sort keys %$copy)
+  {
+    my $s= $copy->{$s_repo};
+    foreach my $d_repo (sort keys %$s)
+    {
+      my @s_paths= sort @{$s->{$d_repo}};
+
+      if (open (FO_COPY, '>:utf8', join ('_', '@copy', $s_repo, 'to', $d_repo)))
+      {
+        foreach my $p (@s_paths) { print FO_COPY $p, "\0" }
+        close (FO_COPY);
+      }
+    }
+  }
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
