@@ -26,7 +26,8 @@ my %plugins_loaded= ();
 
 # TODO: this should come from the config!
 # my $POLICY_MIN_SIZE;
-my $POLICY_MIN_SIZE= 1_000_000;
+# my $POLICY_MIN_SIZE= 1_000_000;
+my $POLICY_MIN_SIZE= 1_000;
 
 sub new
 {
