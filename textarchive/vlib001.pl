@@ -280,12 +280,34 @@ elsif ($op_mode eq 'policy')
     foreach my $d_repo (sort keys %$s)
     {
       my @s_paths= sort @{$s->{$d_repo}};
+      my $part= 0;
+      my $fo_open= 0;
+      my $items= 0;
 
-      if (open (FO_COPY, '>:utf8', join ('_', '@copy', $s_repo, 'to', $d_repo)))
+      foreach my $p (@s_paths)
       {
-        foreach my $p (@s_paths) { print FO_COPY $p, "\0" }
-        close (FO_COPY);
+        unless ($fo_open)
+        {
+          my $fnm= join ('_', '@copy', $s_repo, 'to', $d_repo, 'part', ++$part);
+          unless (open (FO_COPY, '>:utf8', $fnm))
+          {
+            printf STDERR "can't write to '$fnm'\n";
+            exit;
+          }
+          print "writing items to '$fnm'\n";
+          $fo_open= 1;
+        }
+        print FO_COPY $p, "\0";
+        $items++;
+        if ($items >= 1000) # TODO: parametrize
+        {
+          close (FO_COPY);
+          $items= 0;
+          $fo_open= 0;
+        }
       }
+
+      close (FO_COPY) if ($fo_open);
     }
   }
 }
