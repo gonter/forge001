@@ -140,6 +140,7 @@ sub read_flist
     print __LINE__, " could not open '$fnm'!\n";
     return -1;
   }
+  binmode (FI, ':utf8'); # maybe we need a flag for that?
 
   my @files;
   while (<FI>)

@@ -65,6 +65,10 @@ use TA::ObjReg;
 use md5cat;
 use Util::ts qw(ts_ISO);
 
+binmode( STDOUT, ':utf8' ); autoflush STDOUT 1;
+binmode( STDERR, ':utf8' ); autoflush STDERR 1;
+binmode( STDIN,  ':utf8' );
+
 my $project;
 my $store;
 my $refresh_fileinfo= 0;
