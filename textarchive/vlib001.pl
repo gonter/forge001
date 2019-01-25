@@ -172,6 +172,19 @@ my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => '
 # print "objreg: ", Dumper ($objreg); exit;
 &usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
+
+if (!defined (&MongoDB::Collection::remove) && defined (&MongoDB::Collection::delete_one))
+{ # this is bad; the script has to run with MongoDB drivers with versions ranging from 0.702.1 over v1.2.2 to v2.0.1;
+  # 0.702.1 does not have delete_one(), v1.2.2 deprecated remove() and v2.0.1 does no longer have remove()
+  print "MongoDB remove() missing; patching...\n";
+  *MongoDB::Collection::remove= *MongoDB::Collection::delete_one;
+}
+
+unless (defined (&MongoDB::Collection::remove))
+{
+  die("MongoDB remove() missing");
+}
+
 exit(2) if ($STOP);
 
 $SIG{INT}= sub { $STOP= 1; print "SIGINT received\n"; };
