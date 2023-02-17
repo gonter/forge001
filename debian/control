@@ -1,0 +1,12 @@
+Package: forge001-perl
+Version: 0.1-4
+Architecture: all
+Maintainer: Gerhard Gonter <ggonter@gmail.com>
+Original-Maintainer: Gerhard Gonter <ggonter@gmail.com>
+Installed-Size: 629
+Depends: perl, libgg-aix-pm-perl, libdigest-md5-file-perl
+Section: perl
+Priority: optional
+Homepage: tbd
+Description: Perl scripts and modules from the forge001 repo
+ TBD...
