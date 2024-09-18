@@ -12,7 +12,7 @@ cp debian/control $pkgdir/control
 echo '2.0' > $pkgdir/debian-binary
 
 mkdir -p $bindir
-cp textarchive/vlib001.pl textarchive/mp3tags.pl textarchive/oggtags.pl $bindir
+cp textarchive/vlib001.pl textarchive/mp3tags.pl textarchive/oggtags.pl textarchive/show_dups.pl $bindir
 
 mkdeb.pl $pkgdir
 
