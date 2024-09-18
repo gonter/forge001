@@ -6,8 +6,8 @@
 
 =head1 VERSION
 
-  Version: 0.50
-  Date: Fri Oct 16 13:09:17 CEST 2015
+  Version: 0.60
+  Date: Wed Sep 11 07:21:21 PM CEST 2024
 
 =head1 USAGE
 
@@ -74,7 +74,7 @@ my $op_mode= 'refresh';
 my $limit= undef;
 my $show_every= 1000;
 my $cat_file= '_catalog';
-my $ino_file= '_catalog.inodes';
+# my $ino_file= '_catalog.inodes';
 my $check_inode= 1;
 my $cd_mode= 0;
 my $EDITOR= $ENV{'EDITOR'} || '/bin/vi';
@@ -105,15 +105,16 @@ while (my $arg= shift (@ARGV))
   {
     my ($opt, $val)= split ('=', $1, 2);
 
-       if ($opt eq 'project')  { $project= $val || shift (@ARGV); }
-    elsif ($opt eq 'store')    { $store=   $val || shift (@ARGV); }
-    elsif ($opt eq 'limit')    { $limit=   $val || shift (@ARGV) ; }
+       if ($opt eq 'project')  { $project= $val || shift (@ARGV) }
+    elsif ($opt eq 'store')    { $store=   $val || shift (@ARGV) }
+    elsif ($opt eq 'limit')    { $limit=   $val || shift (@ARGV) }
     elsif ($opt eq 'fileinfo') { $refresh_fileinfo= 1; }
     elsif ($opt eq 'noinode')  { $check_inode= 0; }
     elsif ($opt eq 'subdir')   { $par_mode= 'subdir'; }
     elsif ($opt eq 'file')     { $par_mode= 'file'; }
     elsif ($opt eq 'cd')       { $cd_mode= 1; }
-    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat|policy)$/) { $op_mode= $1; }
+    elsif ($opt eq 'cat')      { $cat_file= $val || shift (@ARGV) }
+    elsif ($arg =~ /^--(refresh|verify|lookup|edit|maint|next-seq|get-cat|policy|crf)$/) { $op_mode= $1; }
     else { &usage ("unknown option '$arg'"); }
   }
   elsif ($arg =~ /^-/)
@@ -170,7 +171,7 @@ if ($op_mode eq 'edit')
 
 my $objreg= new TA::ObjReg ('project' => $project, 'store' => $store, 'key' => 'md5');
 # print "objreg: ", Dumper ($objreg); exit;
-&usage ('no config found') unless (defined ($objreg));
+usage ('no config found') unless (defined ($objreg));
 print "objreg: ", Dumper ($objreg) if ($DEBUG || $STOP);
 
 if (!defined (&MongoDB::Collection::remove) && defined (&MongoDB::Collection::delete_one))
@@ -260,7 +261,7 @@ TODO: For MongoDB backend: synchronize information about stores with maint colle
 elsif ($op_mode eq 'get-cat')
 {
   my $catalog= $objreg->{'cfg'}->{'catalog'};
-  &usage ('no catalog found in config') unless (defined ($catalog));
+  usage ('no catalog found in config') unless (defined ($catalog));
 
   my $stores_p= $objreg->{'cfg'}->{'stores'};
   my $store_cfg= $stores_p->{$store};
@@ -323,6 +324,11 @@ elsif ($op_mode eq 'policy')
       close (FO_COPY) if ($fo_open);
     }
   }
+}
+else
+{
+  print "unknown op_mode=[$op_mode]\n";
+  exit(2);
 }
 
 # print "objreg: (after refresh)", Dumper ($objreg);
@@ -440,7 +446,7 @@ sub refresh_internal
   # print "toc: ", Dumper ($toc);
 
   my @check_list= qw(mtime size);
-  push (@check_list, 'ino') if ($check_inode);
+  push (@check_list, 'ino') if ($check_inode); # TODO: if the store is configured as { "inodes":  "ignore" }, then there is no need to collect inode data here
 
   # compare TOC and reference filelist
   my %key= ();
@@ -673,25 +679,30 @@ sub get_cat_internal
     my ($md5, $fs_size, $path, $ino)= map { $t->{$_} } qw(md5 fs_size path ino);
     printf CAT ("%s file %9ld %s\n", $md5, $fs_size, $path);
     # print "t: ", Dumper ($t);
-    push (@{$inodes{$ino}}, $path) if ($check_inode);
+    push (@{$inodes{$ino}}, $path) if (defined($ino) && $check_inode);
     $count++;
   }
   close (CAT);
 
   if ($check_inode)
   {
-    if (open (INO, '>:utf8', $ino_file))
+    my @inodes_sorted= sort { $a <=> $b } keys %inodes;
+    if (@inodes_sorted)
     {
-      print "writing new catalog '$ino_file'\n";
-      foreach my $ino (sort { $a <=> $b } keys %inodes)
+      my $ino_file= $cat_file . '.inodes';
+      if (open (INO, '>:utf8', $ino_file))
       {
-        print INO join ('|', $ino, @{$inodes{$ino}}), "\n";
+        print "writing new catalog '$ino_file'\n";
+        foreach my $ino (@inodes_sorted)
+        {
+          print INO join ('|', $ino, @{$inodes{$ino}}), "\n";
+        }
+        close (INO);
       }
-      close (INO);
-    }
-    else
-    {
-      print "can not write to '$ino_file'\n";
+      else
+      {
+        print "can not write to '$ino_file'\n";
+      }
     }
   }
 
